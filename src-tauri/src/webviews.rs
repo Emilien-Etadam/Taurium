@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager};
 
 use crate::config::Service;
 
@@ -13,77 +13,24 @@ pub struct WebviewState {
     pub services: Vec<Service>,
 }
 
-pub fn create_webview(app: &AppHandle, state: &WebviewState, service: &Service) -> Result<(), String> {
-    eprintln!("[FerdiLight] Creating webview for service: {} ({})", service.id, service.url);
+pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
+    eprintln!("[FerdiLight] Switching to service: {}", id);
 
-    let window = app.get_window("main").ok_or("Main window not found")?;
-    let inner_size = window.inner_size().map_err(|e| e.to_string())?;
-    let scale = window.scale_factor().unwrap_or(1.0);
-
-    let width = (inner_size.width as f64 / scale) - SIDEBAR_WIDTH;
-    let height = inner_size.height as f64 / scale;
-
-    eprintln!("[FerdiLight] Webview bounds: x={}, y=0, w={}, h={}", SIDEBAR_WIDTH, width, height);
-
-    let parsed_url: tauri::Url = service.url.parse().map_err(|e: url::ParseError| e.to_string())?;
-    let url = WebviewUrl::External(parsed_url);
-
-    let builder = tauri::webview::WebviewBuilder::new(&service.id, url);
-
-    let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
-            LogicalSize::new(width, height),
-        )
-        .map_err(|e| {
-            eprintln!("[FerdiLight] ERROR creating webview: {}", e);
-            e.to_string()
-        })?;
-
-    webview.show().map_err(|e| e.to_string())?;
-
-    eprintln!("[FerdiLight] Webview '{}' created and shown successfully", service.id);
-
-    state.created_ids.lock().unwrap().push(service.id.clone());
-    Ok(())
-}
-
-pub fn show_webview(app: &AppHandle, id: &str) -> Result<(), String> {
-    eprintln!("[FerdiLight] Showing webview: {}", id);
-    let webview = app.get_webview(id).ok_or(format!("Webview '{}' not found", id))?;
-    webview.show().map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-pub fn hide_all_webviews(app: &AppHandle, state: &WebviewState) {
+    // Hide all service webviews
     let ids = state.created_ids.lock().unwrap();
-    for id in ids.iter() {
-        if let Some(webview) = app.get_webview(id) {
+    for wv_id in ids.iter() {
+        if let Some(webview) = app.get_webview(wv_id) {
             webview.hide().ok();
         }
     }
-}
+    drop(ids);
 
-pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
-    eprintln!("[FerdiLight] Switching to service: {}", id);
-    hide_all_webviews(app, state);
-
-    let already_created = state.created_ids.lock().unwrap().contains(&id.to_string());
-
-    if !already_created {
-        let service = state
-            .services
-            .iter()
-            .find(|s| s.id == id)
-            .ok_or(format!("Service '{}' not found", id))?
-            .clone();
-        create_webview(app, state, &service)?;
-    } else {
-        show_webview(app, id)?;
-    }
+    // Show the requested one
+    let webview = app.get_webview(id).ok_or(format!("Webview '{}' not found", id))?;
+    webview.show().map_err(|e| e.to_string())?;
 
     *state.active_id.lock().unwrap() = Some(id.to_string());
+    eprintln!("[FerdiLight] Now showing: {}", id);
     Ok(())
 }
 
