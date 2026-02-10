@@ -31,7 +31,7 @@ fn get_last_active_service(state: tauri::State<WebviewState>) -> Option<String> 
 #[tauri::command]
 fn save_services(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), String> {
     config::save_services(&state.app_data_dir, &services);
-    eprintln!("[FerdiLight] Services saved ({} services)", services.len());
+    eprintln!("[Taurium] Services saved ({} services)", services.len());
     Ok(())
 }
 
@@ -42,7 +42,7 @@ fn open_settings(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Re
 
 #[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
-    eprintln!("[FerdiLight] Restarting app...");
+    eprintln!("[Taurium] Restarting app...");
     tauri::process::restart(&app.env());
 }
 
@@ -69,7 +69,7 @@ pub fn run() {
 
             // Create main window
             let window = tauri::window::WindowBuilder::new(app, "main")
-                .title("FerdiLight")
+                .title("Taurium")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(400.0, 300.0)
                 .build()?;
@@ -103,12 +103,12 @@ pub fn run() {
                 LogicalSize::new(content_width, h),
             )?;
             settings_webview.hide()?;
-            eprintln!("[FerdiLight] Settings webview created (hidden)");
+            eprintln!("[Taurium] Settings webview created (hidden)");
 
             // Pre-create ALL service webviews during setup (hidden)
             let state = app.state::<WebviewState>();
             for service in &services {
-                eprintln!("[FerdiLight] Pre-creating webview: {} ({})", service.id, service.url);
+                eprintln!("[Taurium] Pre-creating webview: {} ({})", service.id, service.url);
 
                 let parsed_url: tauri::Url = service.url.parse().expect("Invalid service URL");
                 let url = WebviewUrl::External(parsed_url);
@@ -123,7 +123,7 @@ pub fn run() {
                 webview.hide()?;
                 state.created_ids.lock().unwrap().push(service.id.clone());
 
-                eprintln!("[FerdiLight] Webview '{}' created (hidden)", service.id);
+                eprintln!("[Taurium] Webview '{}' created (hidden)", service.id);
             }
 
             // Listen for window resize events

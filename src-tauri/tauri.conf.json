@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "FerdiLight",
+  "productName": "Taurium",
   "version": "0.1.0",
-  "identifier": "com.ferdilight.app",
+  "identifier": "com.taurium.app",
   "build": {
     "frontendDist": "../src"
   },

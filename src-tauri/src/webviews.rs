@@ -28,19 +28,19 @@ fn hide_all(app: &AppHandle, state: &WebviewState) {
 }
 
 pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
-    eprintln!("[FerdiLight] Switching to service: {}", id);
+    eprintln!("[Taurium] Switching to service: {}", id);
     hide_all(app, state);
 
     let webview = app.get_webview(id).ok_or(format!("Webview '{}' not found", id))?;
     webview.show().map_err(|e| e.to_string())?;
 
     *state.active_id.lock().unwrap() = Some(id.to_string());
-    eprintln!("[FerdiLight] Now showing: {}", id);
+    eprintln!("[Taurium] Now showing: {}", id);
     Ok(())
 }
 
 pub fn show_settings(app: &AppHandle, state: &WebviewState) -> Result<(), String> {
-    eprintln!("[FerdiLight] Showing settings");
+    eprintln!("[Taurium] Showing settings");
     hide_all(app, state);
 
     let webview = app.get_webview("settings").ok_or("Settings webview not found")?;
