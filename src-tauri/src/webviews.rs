@@ -14,6 +14,8 @@ pub struct WebviewState {
 }
 
 pub fn create_webview(app: &AppHandle, state: &WebviewState, service: &Service) -> Result<(), String> {
+    eprintln!("[FerdiLight] Creating webview for service: {} ({})", service.id, service.url);
+
     let window = app.get_window("main").ok_or("Main window not found")?;
     let inner_size = window.inner_size().map_err(|e| e.to_string())?;
     let scale = window.scale_factor().unwrap_or(1.0);
@@ -21,28 +23,34 @@ pub fn create_webview(app: &AppHandle, state: &WebviewState, service: &Service) 
     let width = (inner_size.width as f64 / scale) - SIDEBAR_WIDTH;
     let height = inner_size.height as f64 / scale;
 
-    let _data_dir = state.app_data_dir.join("webview_data").join(&service.id);
-    std::fs::create_dir_all(&_data_dir).ok();
+    eprintln!("[FerdiLight] Webview bounds: x={}, y=0, w={}, h={}", SIDEBAR_WIDTH, width, height);
 
     let parsed_url: tauri::Url = service.url.parse().map_err(|e: url::ParseError| e.to_string())?;
     let url = WebviewUrl::External(parsed_url);
 
-    let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
-        .auto_resize();
+    let builder = tauri::webview::WebviewBuilder::new(&service.id, url);
 
-    window
+    let webview = window
         .add_child(
             builder,
             LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
             LogicalSize::new(width, height),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[FerdiLight] ERROR creating webview: {}", e);
+            e.to_string()
+        })?;
+
+    webview.show().map_err(|e| e.to_string())?;
+
+    eprintln!("[FerdiLight] Webview '{}' created and shown successfully", service.id);
 
     state.created_ids.lock().unwrap().push(service.id.clone());
     Ok(())
 }
 
 pub fn show_webview(app: &AppHandle, id: &str) -> Result<(), String> {
+    eprintln!("[FerdiLight] Showing webview: {}", id);
     let webview = app.get_webview(id).ok_or(format!("Webview '{}' not found", id))?;
     webview.show().map_err(|e| e.to_string())?;
     Ok(())
@@ -58,6 +66,7 @@ pub fn hide_all_webviews(app: &AppHandle, state: &WebviewState) {
 }
 
 pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
+    eprintln!("[FerdiLight] Switching to service: {}", id);
     hide_all_webviews(app, state);
 
     let already_created = state.created_ids.lock().unwrap().contains(&id.to_string());
