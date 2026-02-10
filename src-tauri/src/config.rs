@@ -39,6 +39,14 @@ pub fn load_state(app_data_dir: &PathBuf) -> AppState {
     serde_json::from_str(&content).unwrap_or_default()
 }
 
+pub fn save_services(app_data_dir: &PathBuf, services: &[Service]) {
+    let path = get_services_path(app_data_dir);
+    fs::create_dir_all(app_data_dir).ok();
+    if let Ok(json) = serde_json::to_string_pretty(services) {
+        fs::write(&path, json).ok();
+    }
+}
+
 pub fn save_state(app_data_dir: &PathBuf, state: &AppState) {
     let path = app_data_dir.join("state.json");
     fs::create_dir_all(app_data_dir).ok();

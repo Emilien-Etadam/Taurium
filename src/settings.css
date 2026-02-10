@@ -1,0 +1,203 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 4px;
+  color: #fff;
+}
+
+.hint {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 24px;
+}
+
+#service-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.service-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #16213e;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.service-item .icon {
+  font-size: 22px;
+  width: 32px;
+  text-align: center;
+}
+
+.service-item .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.service-item .name {
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.service-item .url {
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.service-item .actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.btn-icon.delete:hover {
+  color: #e94560;
+}
+
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-add {
+  background: #16213e;
+  color: #e0e0e0;
+  width: 100%;
+}
+
+.btn-add:hover {
+  background: #1a2745;
+}
+
+.form {
+  background: #16213e;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.form.hidden {
+  display: none;
+}
+
+.form h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+  color: #fff;
+}
+
+.form label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.form input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: #0f1a30;
+  border: 1px solid #2a3555;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+
+.form input:focus {
+  border-color: #e94560;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.btn-save {
+  background: #e94560;
+  color: #fff;
+}
+
+.btn-save:hover {
+  background: #d63851;
+}
+
+.btn-cancel {
+  background: #2a3555;
+  color: #e0e0e0;
+}
+
+.btn-cancel:hover {
+  background: #344068;
+}
+
+.restart-section {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.btn-restart {
+  background: #e94560;
+  color: #fff;
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+}
+
+.btn-restart:hover {
+  background: #d63851;
+}
+
+.btn-restart.hidden {
+  display: none;
+}
