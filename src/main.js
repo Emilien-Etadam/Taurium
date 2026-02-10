@@ -1,8 +1,24 @@
-const { invoke } = window.__TAURI__.core;
-
 let activeId = null;
 
+function getInvoke() {
+  return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+}
+
 async function init() {
+  // Wait for __TAURI__ to be injected
+  let invoke = getInvoke();
+  if (!invoke) {
+    await new Promise((resolve) => {
+      const check = setInterval(() => {
+        invoke = getInvoke();
+        if (invoke) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 50);
+    });
+  }
+
   try {
     const sidebar = document.getElementById("sidebar");
     const services = await invoke("get_services");
@@ -31,6 +47,8 @@ async function init() {
 }
 
 async function switchService(id) {
+  const invoke = getInvoke();
+  if (!invoke) return;
   try {
     await invoke("switch_service", { id });
     activeId = id;
@@ -47,4 +65,4 @@ function updateActiveState() {
   });
 }
 
-init();
+document.addEventListener("DOMContentLoaded", init);
