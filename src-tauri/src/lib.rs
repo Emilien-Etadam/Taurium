@@ -58,6 +58,15 @@ pub fn run() {
 
             let services = load_services(&app_data_dir);
 
+            // Register state FIRST (before creating webviews that may call invoke)
+            let webview_state = WebviewState {
+                created_ids: std::sync::Mutex::new(Vec::new()),
+                active_id: std::sync::Mutex::new(None),
+                app_data_dir,
+                services: services.clone(),
+            };
+            app.manage(webview_state);
+
             // Create main window
             let window = tauri::window::WindowBuilder::new(app, "main")
                 .title("FerdiLight")
@@ -97,8 +106,7 @@ pub fn run() {
             eprintln!("[FerdiLight] Settings webview created (hidden)");
 
             // Pre-create ALL service webviews during setup (hidden)
-            let mut created_ids = Vec::new();
-
+            let state = app.state::<WebviewState>();
             for service in &services {
                 eprintln!("[FerdiLight] Pre-creating webview: {} ({})", service.id, service.url);
 
@@ -113,19 +121,10 @@ pub fn run() {
                 )?;
 
                 webview.hide()?;
-                created_ids.push(service.id.clone());
+                state.created_ids.lock().unwrap().push(service.id.clone());
 
                 eprintln!("[FerdiLight] Webview '{}' created (hidden)", service.id);
             }
-
-            let webview_state = WebviewState {
-                created_ids: std::sync::Mutex::new(created_ids),
-                active_id: std::sync::Mutex::new(None),
-                app_data_dir,
-                services,
-            };
-
-            app.manage(webview_state);
 
             // Listen for window resize events
             let app_handle = app.handle().clone();
