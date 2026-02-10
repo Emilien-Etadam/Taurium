@@ -1,26 +1,23 @@
 let activeId = null;
+let settingsOpen = false;
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
 
 async function init() {
-  // Wait for __TAURI__ to be injected
   let invoke = getInvoke();
   if (!invoke) {
     await new Promise((resolve) => {
       const check = setInterval(() => {
         invoke = getInvoke();
-        if (invoke) {
-          clearInterval(check);
-          resolve();
-        }
+        if (invoke) { clearInterval(check); resolve(); }
       }, 50);
     });
   }
 
   try {
-    const sidebar = document.getElementById("sidebar");
+    const serviceList = document.getElementById("service-list");
     const services = await invoke("get_services");
 
     services.forEach((service) => {
@@ -30,8 +27,11 @@ async function init() {
       btn.title = service.name;
       btn.dataset.id = service.id;
       btn.addEventListener("click", () => switchService(service.id));
-      sidebar.appendChild(btn);
+      serviceList.appendChild(btn);
     });
+
+    // Settings button
+    document.getElementById("settings-btn").addEventListener("click", openSettings);
 
     // Restore last active service
     const lastActive = await invoke("get_last_active_service");
@@ -52,6 +52,7 @@ async function switchService(id) {
   try {
     await invoke("switch_service", { id });
     activeId = id;
+    settingsOpen = false;
     updateActiveState();
   } catch (err) {
     document.body.style.color = "red";
@@ -59,10 +60,25 @@ async function switchService(id) {
   }
 }
 
+async function openSettings() {
+  const invoke = getInvoke();
+  if (!invoke) return;
+  try {
+    await invoke("open_settings");
+    activeId = null;
+    settingsOpen = true;
+    updateActiveState();
+  } catch (err) {
+    document.body.style.color = "red";
+    document.body.innerHTML += "<pre>Settings error: " + err + "</pre>";
+  }
+}
+
 function updateActiveState() {
   document.querySelectorAll(".service-icon").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.id === activeId);
   });
+  document.getElementById("settings-btn").classList.toggle("active", settingsOpen);
 }
 
 document.addEventListener("DOMContentLoaded", init);

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings - FerdiLight</title>
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Services</h1>
+    <p class="hint">Changes require an app restart to take effect.</p>
+
+    <div id="service-list"></div>
+
+    <button id="add-btn" class="btn btn-add">+ Add Service</button>
+
+    <div id="edit-form" class="form hidden">
+      <h2 id="form-title">Add Service</h2>
+      <label>
+        Name
+        <input type="text" id="input-name" placeholder="Gmail" />
+      </label>
+      <label>
+        URL
+        <input type="url" id="input-url" placeholder="https://mail.google.com" />
+      </label>
+      <label>
+        Icon (emoji)
+        <input type="text" id="input-icon" placeholder="📧" maxlength="4" />
+      </label>
+      <div class="form-actions">
+        <button id="save-btn" class="btn btn-save">Save</button>
+        <button id="cancel-btn" class="btn btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="restart-section">
+      <button id="restart-btn" class="btn btn-restart hidden">Restart to apply changes</button>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

@@ -28,6 +28,24 @@ fn get_last_active_service(state: tauri::State<WebviewState>) -> Option<String> 
     app_state.last_active_service
 }
 
+#[tauri::command]
+fn save_services(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), String> {
+    config::save_services(&state.app_data_dir, &services);
+    eprintln!("[FerdiLight] Services saved ({} services)", services.len());
+    Ok(())
+}
+
+#[tauri::command]
+fn open_settings(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), String> {
+    webviews::show_settings(&app, &state)
+}
+
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    eprintln!("[FerdiLight] Restarting app...");
+    tauri::process::restart(&app.env());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -57,18 +75,28 @@ pub fn run() {
                 "sidebar",
                 WebviewUrl::App("index.html".into()),
             );
-            let sidebar_webview = window.add_child(
+            let _sidebar_webview = window.add_child(
                 sidebar_builder,
                 LogicalPosition::new(0.0, 0.0),
                 LogicalSize::new(webviews::SIDEBAR_WIDTH, h),
             )?;
 
-            #[cfg(debug_assertions)]
-            sidebar_webview.open_devtools();
+            let content_width = w - webviews::SIDEBAR_WIDTH;
+
+            // Pre-create settings webview (hidden)
+            let settings_builder = tauri::webview::WebviewBuilder::new(
+                "settings",
+                WebviewUrl::App("settings.html".into()),
+            );
+            let settings_webview = window.add_child(
+                settings_builder,
+                LogicalPosition::new(webviews::SIDEBAR_WIDTH, 0.0),
+                LogicalSize::new(content_width, h),
+            )?;
+            settings_webview.hide()?;
+            eprintln!("[FerdiLight] Settings webview created (hidden)");
 
             // Pre-create ALL service webviews during setup (hidden)
-            // This avoids the add_child deadlock when called from command handlers
-            let content_width = w - webviews::SIDEBAR_WIDTH;
             let mut created_ids = Vec::new();
 
             for service in &services {
@@ -84,7 +112,6 @@ pub fn run() {
                     LogicalSize::new(content_width, h),
                 )?;
 
-                // Hide all webviews initially
                 webview.hide()?;
                 created_ids.push(service.id.clone());
 
@@ -115,6 +142,9 @@ pub fn run() {
             get_services,
             switch_service,
             get_last_active_service,
+            save_services,
+            open_settings,
+            restart_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

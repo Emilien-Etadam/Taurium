@@ -13,24 +13,40 @@ pub struct WebviewState {
     pub services: Vec<Service>,
 }
 
-pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
-    eprintln!("[FerdiLight] Switching to service: {}", id);
-
-    // Hide all service webviews
+fn hide_all(app: &AppHandle, state: &WebviewState) {
+    // Hide service webviews
     let ids = state.created_ids.lock().unwrap();
     for wv_id in ids.iter() {
         if let Some(webview) = app.get_webview(wv_id) {
             webview.hide().ok();
         }
     }
-    drop(ids);
+    // Hide settings
+    if let Some(webview) = app.get_webview("settings") {
+        webview.hide().ok();
+    }
+}
 
-    // Show the requested one
+pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
+    eprintln!("[FerdiLight] Switching to service: {}", id);
+    hide_all(app, state);
+
     let webview = app.get_webview(id).ok_or(format!("Webview '{}' not found", id))?;
     webview.show().map_err(|e| e.to_string())?;
 
     *state.active_id.lock().unwrap() = Some(id.to_string());
     eprintln!("[FerdiLight] Now showing: {}", id);
+    Ok(())
+}
+
+pub fn show_settings(app: &AppHandle, state: &WebviewState) -> Result<(), String> {
+    eprintln!("[FerdiLight] Showing settings");
+    hide_all(app, state);
+
+    let webview = app.get_webview("settings").ok_or("Settings webview not found")?;
+    webview.show().map_err(|e| e.to_string())?;
+
+    *state.active_id.lock().unwrap() = None;
     Ok(())
 }
 
@@ -52,6 +68,16 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
             .set_size(tauri::Size::Logical(LogicalSize::new(SIDEBAR_WIDTH, height)))
+            .ok();
+    }
+
+    // Resize settings
+    if let Some(settings) = app.get_webview("settings") {
+        settings
+            .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
+            .ok();
+        settings
+            .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
             .ok();
     }
 
