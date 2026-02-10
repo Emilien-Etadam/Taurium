@@ -66,11 +66,15 @@ pub fn run() {
             let scale = window.scale_factor()?;
             let h = inner.height as f64 / scale;
 
-            window.add_child(
+            let sidebar_webview = window.add_child(
                 sidebar_builder,
                 LogicalPosition::new(0.0, 0.0),
                 LogicalSize::new(webviews::SIDEBAR_WIDTH, h),
             )?;
+
+            // Open devtools in debug mode
+            #[cfg(debug_assertions)]
+            sidebar_webview.open_devtools();
 
             // Listen for window resize events
             let app_handle = app.handle().clone();
