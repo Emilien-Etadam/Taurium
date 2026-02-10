@@ -40,41 +40,65 @@ pub fn run() {
 
             let services = load_services(&app_data_dir);
 
-            let webview_state = WebviewState {
-                created_ids: std::sync::Mutex::new(Vec::new()),
-                active_id: std::sync::Mutex::new(None),
-                app_data_dir,
-                services,
-            };
-
-            app.manage(webview_state);
-
-            // Create main window manually (no default windows in tauri.conf.json)
+            // Create main window
             let window = tauri::window::WindowBuilder::new(app, "main")
                 .title("FerdiLight")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(400.0, 300.0)
                 .build()?;
 
-            // Add sidebar webview as a child (occupies the left 48px)
+            let inner = window.inner_size()?;
+            let scale = window.scale_factor()?;
+            let w = inner.width as f64 / scale;
+            let h = inner.height as f64 / scale;
+
+            // Add sidebar webview
             let sidebar_builder = tauri::webview::WebviewBuilder::new(
                 "sidebar",
                 WebviewUrl::App("index.html".into()),
             );
-
-            let inner = window.inner_size()?;
-            let scale = window.scale_factor()?;
-            let h = inner.height as f64 / scale;
-
             let sidebar_webview = window.add_child(
                 sidebar_builder,
                 LogicalPosition::new(0.0, 0.0),
                 LogicalSize::new(webviews::SIDEBAR_WIDTH, h),
             )?;
 
-            // Open devtools in debug mode
             #[cfg(debug_assertions)]
             sidebar_webview.open_devtools();
+
+            // Pre-create ALL service webviews during setup (hidden)
+            // This avoids the add_child deadlock when called from command handlers
+            let content_width = w - webviews::SIDEBAR_WIDTH;
+            let mut created_ids = Vec::new();
+
+            for service in &services {
+                eprintln!("[FerdiLight] Pre-creating webview: {} ({})", service.id, service.url);
+
+                let parsed_url: tauri::Url = service.url.parse().expect("Invalid service URL");
+                let url = WebviewUrl::External(parsed_url);
+                let builder = tauri::webview::WebviewBuilder::new(&service.id, url);
+
+                let webview = window.add_child(
+                    builder,
+                    LogicalPosition::new(webviews::SIDEBAR_WIDTH, 0.0),
+                    LogicalSize::new(content_width, h),
+                )?;
+
+                // Hide all webviews initially
+                webview.hide()?;
+                created_ids.push(service.id.clone());
+
+                eprintln!("[FerdiLight] Webview '{}' created (hidden)", service.id);
+            }
+
+            let webview_state = WebviewState {
+                created_ids: std::sync::Mutex::new(created_ids),
+                active_id: std::sync::Mutex::new(None),
+                app_data_dir,
+                services,
+            };
+
+            app.manage(webview_state);
 
             // Listen for window resize events
             let app_handle = app.handle().clone();
