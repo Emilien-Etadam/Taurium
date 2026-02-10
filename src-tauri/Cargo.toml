@@ -1,12 +1,12 @@
 [package]
-name = "ferdilight"
+name = "taurium"
 version = "0.1.0"
 description = "A minimalist Ferdium-like app with multi-webview support"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "ferdilight_lib"
+name = "taurium_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
