@@ -1,7 +1,8 @@
 mod config;
 mod webviews;
 
-use config::{load_services, load_state, save_state, AppState, Service};
+use config::{extract_badge_count, load_services, load_state, save_state, AppState, Service};
+use std::collections::{HashMap, HashSet};
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use webviews::WebviewState;
 
@@ -46,6 +47,29 @@ fn restart_app(app: tauri::AppHandle) {
     tauri::process::restart(&app.env());
 }
 
+#[tauri::command]
+fn reload_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), String> {
+    eprintln!("[Taurium] Reloading service: {}", id);
+    if let Some(service) = state.services.iter().find(|s| s.id == id) {
+        if let Some(webview) = app.get_webview(&id) {
+            let url = service.url.clone();
+            let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
+            webview.eval(&js).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_badge_counts(state: tauri::State<WebviewState>) -> HashMap<String, u32> {
+    state.badge_counts.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Option<String> {
+    state.services.iter().find(|s| s.id == id).map(|s| s.url.clone())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -58,12 +82,15 @@ pub fn run() {
 
             let services = load_services(&app_data_dir);
 
-            // Register state FIRST (before creating webviews that may call invoke)
+            // Register state FIRST
             let webview_state = WebviewState {
                 created_ids: std::sync::Mutex::new(Vec::new()),
                 active_id: std::sync::Mutex::new(None),
                 app_data_dir,
                 services: services.clone(),
+                navigated: std::sync::Mutex::new(HashSet::new()),
+                last_activity: std::sync::Mutex::new(HashMap::new()),
+                badge_counts: std::sync::Mutex::new(HashMap::new()),
             };
             app.manage(webview_state);
 
@@ -105,14 +132,31 @@ pub fn run() {
             settings_webview.hide()?;
             eprintln!("[Taurium] Settings webview created (hidden)");
 
-            // Pre-create ALL service webviews during setup (hidden)
+            // Pre-create ALL service webviews with about:blank (lazy loading)
             let state = app.state::<WebviewState>();
             for service in &services {
-                eprintln!("[Taurium] Pre-creating webview: {} ({})", service.id, service.url);
+                eprintln!("[Taurium] Pre-creating webview: {} (about:blank, lazy)", service.id);
 
-                let parsed_url: tauri::Url = service.url.parse().expect("Invalid service URL");
-                let url = WebviewUrl::External(parsed_url);
-                let builder = tauri::webview::WebviewBuilder::new(&service.id, url);
+                let url = WebviewUrl::External("about:blank".parse().unwrap());
+                let app_handle_badge = app.handle().clone();
+                let service_id_badge = service.id.clone();
+                let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
+                    .on_document_title_changed(move |_webview, title| {
+                        let count = extract_badge_count(&title);
+                        let state = app_handle_badge.state::<WebviewState>();
+                        let mut badges = state.badge_counts.lock().unwrap();
+                        if count > 0 {
+                            badges.insert(service_id_badge.clone(), count);
+                        } else {
+                            badges.remove(&service_id_badge);
+                        }
+                        // Notify sidebar to update badges
+                        if let Some(sidebar) = app_handle_badge.get_webview("sidebar") {
+                            let badges_json = serde_json::to_string(&*badges).unwrap_or_default();
+                            let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
+                            sidebar.eval(&js).ok();
+                        }
+                    });
 
                 let webview = window.add_child(
                     builder,
@@ -123,7 +167,7 @@ pub fn run() {
                 webview.hide()?;
                 state.created_ids.lock().unwrap().push(service.id.clone());
 
-                eprintln!("[Taurium] Webview '{}' created (hidden)", service.id);
+                eprintln!("[Taurium] Webview '{}' created (hidden, lazy)", service.id);
             }
 
             // Listen for window resize events
@@ -132,6 +176,16 @@ pub fn run() {
                 if let tauri::WindowEvent::Resized(_) = event {
                     let state = app_handle.state::<WebviewState>();
                     webviews::resize_all_webviews(&app_handle, &state);
+                }
+            });
+
+            // Hibernation timer: check every 60 seconds
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(60));
+                    let state = app_handle.state::<WebviewState>();
+                    webviews::check_hibernation(&app_handle, &state);
                 }
             });
 
@@ -144,6 +198,9 @@ pub fn run() {
             save_services,
             open_settings,
             restart_app,
+            reload_service,
+            get_badge_counts,
+            get_service_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

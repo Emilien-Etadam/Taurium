@@ -9,11 +9,30 @@
 <body>
   <aside id="sidebar">
     <div class="service-list" id="service-list"></div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="empty-state hidden">
+      <div class="empty-icon">+</div>
+      <div class="empty-text">No services</div>
+    </div>
+
     <div class="sidebar-bottom">
       <div class="separator"></div>
-      <div class="settings-icon" id="settings-btn" title="Settings">&#9881;</div>
+      <div class="settings-icon" id="settings-btn" title="Settings (Ctrl+,)">&#9881;</div>
     </div>
   </aside>
+
+  <!-- Context menu -->
+  <div id="context-menu" class="context-menu hidden">
+    <div class="ctx-item" data-action="reload">Reload</div>
+    <div class="ctx-item" data-action="open-browser">Open in browser</div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+  </div>
+
   <script src="main.js"></script>
 </body>
 </html>

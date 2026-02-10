@@ -9,7 +9,7 @@
 <body>
   <div class="container">
     <h1>Services</h1>
-    <p class="hint">Changes require an app restart to take effect.</p>
+    <p class="hint">Drag to reorder. Adding new services requires restart.</p>
 
     <div id="service-list"></div>
 
@@ -20,18 +20,31 @@
       <label>
         Name
         <input type="text" id="input-name" placeholder="Gmail" />
+        <span id="err-name" class="field-error hidden"></span>
       </label>
       <label>
         URL
         <input type="url" id="input-url" placeholder="https://mail.google.com" />
+        <span id="err-url" class="field-error hidden"></span>
       </label>
       <label>
         Icon (emoji)
-        <input type="text" id="input-icon" placeholder="📧" maxlength="4" />
+        <input type="text" id="input-icon" placeholder="&#128231;" maxlength="4" />
       </label>
       <div class="form-actions">
         <button id="save-btn" class="btn btn-save">Save</button>
         <button id="cancel-btn" class="btn btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Confirm dialog -->
+    <div id="confirm-dialog" class="confirm-dialog hidden">
+      <div class="confirm-box">
+        <p id="confirm-msg">Are you sure?</p>
+        <div class="confirm-actions">
+          <button id="confirm-yes" class="btn btn-save">Delete</button>
+          <button id="confirm-no" class="btn btn-cancel">Cancel</button>
+        </div>
       </div>
     </div>
 
