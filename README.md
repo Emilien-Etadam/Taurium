@@ -13,6 +13,7 @@ git clone https://github.com/Emilien-Etadam/Taurium.git
 cd Taurium
 npm install
 npm run tauri dev
+```
 
 ## 📄 License
 
