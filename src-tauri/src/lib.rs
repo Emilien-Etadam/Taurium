@@ -1,8 +1,9 @@
 mod config;
 mod webviews;
 
-use config::{extract_badge_count, load_services, load_state, save_state, AppState, Service};
+use config::{extract_badge_count, load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
 use std::collections::{HashMap, HashSet};
+use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use webviews::WebviewState;
 
@@ -70,6 +71,47 @@ fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Option<Stri
     state.services.iter().find(|s| s.id == id).map(|s| s.url.clone())
 }
 
+#[tauri::command]
+fn show_service_context_menu(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    eprintln!("[Taurium] Showing context menu for: {}", id);
+
+    // Store the target service id for the menu event handler
+    *app.state::<ContextMenuTarget>().0.lock().unwrap() = Some(id);
+
+    let reload_item = MenuItemBuilder::with_id("ctx_reload", "Reload")
+        .build(&app)
+        .map_err(|e| e.to_string())?;
+    let open_item = MenuItemBuilder::with_id("ctx_open_browser", "Open in browser")
+        .build(&app)
+        .map_err(|e| e.to_string())?;
+
+    let menu = MenuBuilder::new(&app)
+        .item(&reload_item)
+        .item(&open_item)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let window = app.get_window("main").ok_or("Window not found")?;
+    menu.popup(window).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_preferences(state: tauri::State<WebviewState>) -> Preferences {
+    load_preferences(&state.app_data_dir)
+}
+
+#[tauri::command]
+fn save_preferences_cmd(state: tauri::State<WebviewState>, prefs: Preferences) -> Result<(), String> {
+    config::save_preferences(&state.app_data_dir, &prefs);
+    eprintln!("[Taurium] Preferences saved");
+    Ok(())
+}
+
+// Holds the service ID targeted by the context menu
+pub struct ContextMenuTarget(std::sync::Mutex<Option<String>>);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -93,6 +135,7 @@ pub fn run() {
                 badge_counts: std::sync::Mutex::new(HashMap::new()),
             };
             app.manage(webview_state);
+            app.manage(ContextMenuTarget(std::sync::Mutex::new(None)));
 
             // Create main window
             let window = tauri::window::WindowBuilder::new(app, "main")
@@ -179,6 +222,36 @@ pub fn run() {
                 }
             });
 
+            // Handle context menu events
+            app.on_menu_event(move |app_handle_evt, event| {
+                let menu_id = event.id().0.as_str();
+                let target_id = app_handle_evt.state::<ContextMenuTarget>().0.lock().unwrap().clone();
+
+                if let Some(service_id) = target_id {
+                    match menu_id {
+                        "ctx_reload" => {
+                            eprintln!("[Taurium] Context menu: reload {}", service_id);
+                            let state = app_handle_evt.state::<WebviewState>();
+                            if let Some(service) = state.services.iter().find(|s| s.id == service_id) {
+                                if let Some(webview) = app_handle_evt.get_webview(&service_id) {
+                                    let url = service.url.clone();
+                                    let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
+                                    webview.eval(&js).ok();
+                                }
+                            }
+                        }
+                        "ctx_open_browser" => {
+                            eprintln!("[Taurium] Context menu: open in browser {}", service_id);
+                            let state = app_handle_evt.state::<WebviewState>();
+                            if let Some(service) = state.services.iter().find(|s| s.id == service_id) {
+                                let _ = tauri_plugin_opener::open_url(&service.url, None::<&str>);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            });
+
             // Hibernation timer: check every 60 seconds
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
@@ -201,6 +274,9 @@ pub fn run() {
             reload_service,
             get_badge_counts,
             get_service_url,
+            show_service_context_menu,
+            get_preferences,
+            save_preferences_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

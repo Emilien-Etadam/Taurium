@@ -2,7 +2,8 @@ let services = [];
 let editingIndex = -1;
 let hasChanges = false;
 let deleteIndex = -1;
-let dragIndex = -1;
+let dragSrcIndex = -1;
+let iconDataUrl = ""; // stores base64 data URL for image icon
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -22,6 +23,13 @@ async function init() {
   try {
     services = await invoke("get_services");
     renderServices();
+
+    // Load preferences
+    const prefs = await invoke("get_preferences");
+    document.getElementById("pref-icon-size").value = prefs.icon_size;
+    document.getElementById("pref-icon-size-val").textContent = prefs.icon_size + "px";
+    document.getElementById("pref-sidebar-color").value = prefs.sidebar_color;
+    document.getElementById("pref-accent-color").value = prefs.accent_color;
   } catch (err) {
     document.body.innerHTML = "<pre style='color:red;padding:20px'>Error: " + err + "</pre>";
   }
@@ -32,6 +40,16 @@ async function init() {
   document.getElementById("restart-btn").addEventListener("click", restartApp);
   document.getElementById("confirm-yes").addEventListener("click", confirmDelete);
   document.getElementById("confirm-no").addEventListener("click", cancelDelete);
+  document.getElementById("save-prefs-btn").addEventListener("click", savePreferences);
+
+  // Icon size slider label
+  document.getElementById("pref-icon-size").addEventListener("input", (e) => {
+    document.getElementById("pref-icon-size-val").textContent = e.target.value + "px";
+  });
+
+  // PNG icon file input
+  document.getElementById("input-icon-file").addEventListener("change", handleIconFile);
+  document.getElementById("icon-preview-clear").addEventListener("click", clearIconPreview);
 }
 
 function renderServices() {
@@ -43,9 +61,18 @@ function renderServices() {
     item.className = "service-item";
     item.draggable = true;
     item.dataset.index = index;
+
+    // Render icon (emoji or image)
+    let iconHtml;
+    if (service.icon.startsWith("data:image")) {
+      iconHtml = `<img src="${service.icon}" />`;
+    } else {
+      iconHtml = service.icon;
+    }
+
     item.innerHTML = `
       <span class="drag-handle" title="Drag to reorder">&#9776;</span>
-      <span class="icon">${service.icon}</span>
+      <span class="icon">${iconHtml}</span>
       <div class="info">
         <div class="name">${escapeHtml(service.name)}</div>
         <div class="url">${escapeHtml(service.url)}</div>
@@ -55,8 +82,14 @@ function renderServices() {
         <button class="btn-icon delete" title="Delete">&#10005;</button>
       </div>
     `;
-    item.querySelector(".edit").addEventListener("click", () => showEditForm(index));
-    item.querySelector(".delete").addEventListener("click", () => showDeleteConfirm(index));
+    item.querySelector(".edit").addEventListener("click", (e) => {
+      e.stopPropagation();
+      showEditForm(index);
+    });
+    item.querySelector(".delete").addEventListener("click", (e) => {
+      e.stopPropagation();
+      showDeleteConfirm(index);
+    });
 
     // Drag & drop events
     item.addEventListener("dragstart", onDragStart);
@@ -69,39 +102,68 @@ function renderServices() {
   });
 }
 
-// --- Drag & Drop ---
+// --- Drag & Drop (fixed) ---
 function onDragStart(e) {
-  dragIndex = parseInt(e.currentTarget.dataset.index);
-  e.currentTarget.classList.add("dragging");
+  dragSrcIndex = parseInt(e.currentTarget.dataset.index);
   e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", String(dragSrcIndex));
+  // Delay adding class so the drag image captures the normal look
+  requestAnimationFrame(() => {
+    e.currentTarget.classList.add("dragging");
+  });
 }
 
 function onDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = "move";
-  e.currentTarget.classList.add("drag-over");
+  const item = e.currentTarget;
+  const rect = item.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  // Show indicator above or below
+  item.classList.remove("drag-over-top", "drag-over-bottom");
+  if (e.clientY < midY) {
+    item.classList.add("drag-over-top");
+  } else {
+    item.classList.add("drag-over-bottom");
+  }
 }
 
 function onDragLeave(e) {
-  e.currentTarget.classList.remove("drag-over");
+  e.currentTarget.classList.remove("drag-over-top", "drag-over-bottom");
 }
 
 function onDrop(e) {
   e.preventDefault();
-  e.currentTarget.classList.remove("drag-over");
-  const dropIndex = parseInt(e.currentTarget.dataset.index);
-  if (dragIndex === dropIndex) return;
+  const item = e.currentTarget;
+  item.classList.remove("drag-over-top", "drag-over-bottom");
 
-  // Reorder
-  const [moved] = services.splice(dragIndex, 1);
-  services.splice(dropIndex, 0, moved);
+  const fromIndex = parseInt(e.dataTransfer.getData("text/plain"));
+  let toIndex = parseInt(item.dataset.index);
+  if (isNaN(fromIndex) || isNaN(toIndex) || fromIndex === toIndex) return;
+
+  // Determine if we should insert above or below
+  const rect = item.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+  const insertBelow = e.clientY >= midY;
+
+  // Remove the dragged item
+  const [moved] = services.splice(fromIndex, 1);
+
+  // Adjust toIndex if needed after removal
+  if (fromIndex < toIndex) toIndex--;
+  if (insertBelow) toIndex++;
+
+  services.splice(toIndex, 0, moved);
   renderServices();
   persistServices();
 }
 
 function onDragEnd(e) {
-  e.currentTarget.classList.remove("dragging");
-  dragIndex = -1;
+  // Clean up all drag classes
+  document.querySelectorAll(".service-item").forEach(item => {
+    item.classList.remove("dragging", "drag-over-top", "drag-over-bottom");
+  });
+  dragSrcIndex = -1;
 }
 
 // --- Delete confirmation ---
@@ -126,13 +188,40 @@ function cancelDelete() {
   document.getElementById("confirm-dialog").classList.add("hidden");
 }
 
+// --- Icon file import ---
+function handleIconFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    iconDataUrl = ev.target.result;
+    document.getElementById("icon-preview-img").src = iconDataUrl;
+    document.getElementById("icon-preview").classList.remove("hidden");
+    document.getElementById("input-icon").value = "";
+    document.getElementById("input-icon").placeholder = "Using image";
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearIconPreview() {
+  iconDataUrl = "";
+  document.getElementById("icon-preview").classList.add("hidden");
+  document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
+  document.getElementById("input-icon-file").value = "";
+}
+
 // --- Form ---
 function showAddForm() {
   editingIndex = -1;
+  iconDataUrl = "";
   document.getElementById("form-title").textContent = "Add Service";
   document.getElementById("input-name").value = "";
   document.getElementById("input-url").value = "";
   document.getElementById("input-icon").value = "";
+  document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
+  document.getElementById("icon-preview").classList.add("hidden");
+  document.getElementById("input-icon-file").value = "";
   clearErrors();
   document.getElementById("edit-form").classList.remove("hidden");
 }
@@ -143,7 +232,22 @@ function showEditForm(index) {
   document.getElementById("form-title").textContent = "Edit Service";
   document.getElementById("input-name").value = s.name;
   document.getElementById("input-url").value = s.url;
-  document.getElementById("input-icon").value = s.icon;
+
+  // Handle image vs emoji icon
+  if (s.icon.startsWith("data:image")) {
+    iconDataUrl = s.icon;
+    document.getElementById("input-icon").value = "";
+    document.getElementById("input-icon").placeholder = "Using image";
+    document.getElementById("icon-preview-img").src = s.icon;
+    document.getElementById("icon-preview").classList.remove("hidden");
+  } else {
+    iconDataUrl = "";
+    document.getElementById("input-icon").value = s.icon;
+    document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
+    document.getElementById("icon-preview").classList.add("hidden");
+  }
+
+  document.getElementById("input-icon-file").value = "";
   clearErrors();
   document.getElementById("edit-form").classList.remove("hidden");
 }
@@ -175,7 +279,7 @@ async function saveForm() {
   clearErrors();
   const name = document.getElementById("input-name").value.trim();
   const url = document.getElementById("input-url").value.trim();
-  const icon = document.getElementById("input-icon").value.trim();
+  const emojiIcon = document.getElementById("input-icon").value.trim();
 
   let valid = true;
 
@@ -213,10 +317,20 @@ async function saveForm() {
     return;
   }
 
-  if (editingIndex === -1) {
-    services.push({ id, name, url, icon: icon || "\uD83C\uDF10" });
+  // Determine icon: data URL > emoji > default
+  let icon;
+  if (iconDataUrl) {
+    icon = iconDataUrl;
+  } else if (emojiIcon) {
+    icon = emojiIcon;
   } else {
-    services[editingIndex] = { ...services[editingIndex], name, url, icon: icon || "\uD83C\uDF10" };
+    icon = "\uD83C\uDF10";
+  }
+
+  if (editingIndex === -1) {
+    services.push({ id, name, url, icon });
+  } else {
+    services[editingIndex] = { ...services[editingIndex], name, url, icon };
   }
 
   hideForm();
@@ -233,6 +347,28 @@ async function persistServices() {
     document.getElementById("restart-btn").classList.remove("hidden");
   } catch (err) {
     alert("Error saving: " + err);
+  }
+}
+
+// --- Preferences ---
+async function savePreferences() {
+  const invoke = getInvoke();
+  if (!invoke) return;
+
+  const prefs = {
+    icon_size: parseInt(document.getElementById("pref-icon-size").value),
+    sidebar_color: document.getElementById("pref-sidebar-color").value,
+    accent_color: document.getElementById("pref-accent-color").value,
+  };
+
+  try {
+    await invoke("save_preferences_cmd", { prefs });
+    // Notify sidebar to apply new preferences immediately
+    // The sidebar is a sibling webview, we can't access it directly
+    // But we can restart to apply
+    document.getElementById("restart-btn").classList.remove("hidden");
+  } catch (err) {
+    alert("Error saving preferences: " + err);
   }
 }
 
