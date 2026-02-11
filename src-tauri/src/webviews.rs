@@ -49,21 +49,27 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Send notification if badge count increased
     let prefs = load_preferences(&state.app_data_dir);
-    if prefs.notifications_enabled && count > prev_count && prev_count > 0 {
-        let new_msgs = count - prev_count;
-        let body = if new_msgs == 1 {
-            format!("{} new notification", service_name)
+    let should_notify = prefs.notifications_enabled && count > prev_count;
+    if should_notify && count > 0 {
+        let body = if prev_count == 0 {
+            if count == 1 {
+                format!("1 notification from {}", service_name)
+            } else {
+                format!("{} notifications from {}", count, service_name)
+            }
         } else {
-            format!("{} new notifications from {}", new_msgs, service_name)
+            let new_msgs = count - prev_count;
+            if new_msgs == 1 {
+                format!("New notification from {}", service_name)
+            } else {
+                format!("{} new notifications from {}", new_msgs, service_name)
+            }
         };
-        app.notification().builder().title(service_name).body(body).auto_cancel().show().ok();
-    } else if prefs.notifications_enabled && count > 0 && prev_count == 0 {
-        let body = if count == 1 {
-            "1 notification".to_string()
-        } else {
-            format!("{} notifications", count)
-        };
-        app.notification().builder().title(service_name).body(body).auto_cancel().show().ok();
+        eprintln!("[Taurium] Sending notification: {} - {}", service_name, body);
+        match app.notification().builder().title(service_name).body(&body).show() {
+            Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
+            Err(e) => eprintln!("[Taurium] Notification error: {}", e),
+        }
     }
 
     // Update sidebar badges (lock already released, safe to eval)
