@@ -1,129 +1,102 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/built%20with-Tauri%20v2-blue?style=flat-square" />
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
+</p>
+
 # Taurium
 
-**FR** | Une alternative minimaliste a [Ferdium](https://ferdium.org/), construite avec [Tauri v2](https://v2.tauri.app/).
-Regroupez tous vos services web (WhatsApp, Slack, Gmail, Discord...) dans une seule fenetre avec une sidebar d'icones.
+> **FR** Marre de jongler entre 15 onglets ? Taurium regroupe tous vos services web dans une seule app, legere et rapide.
+>
+> **EN** Tired of juggling 15 browser tabs? Taurium brings all your web services together in one lightweight, fast app.
 
-**EN** | A minimalist alternative to [Ferdium](https://ferdium.org/), built with [Tauri v2](https://v2.tauri.app/).
-Group all your web services (WhatsApp, Slack, Gmail, Discord...) in a single window with an icon sidebar.
+WhatsApp, Slack, Gmail, Discord, Telegram, Messenger, Google Messages... tout au meme endroit. / ...all in one place.
+
+```
+ +------+------------------------------------------+
+ | [WA] |                                          |
+ | [SL] |                                          |
+ | [GM] |          WhatsApp Web                    |
+ | [DC] |                                          |
+ | [TG] |                (2) new messages           |
+ |      |                                          |
+ | [--] |                                          |
+ |  [*] |                                          |
+ +------+------------------------------------------+
+   48px              content area
+```
+
+---
+
+## Why Taurium? / Pourquoi Taurium ?
+
+|  | Taurium | Ferdium | Browser tabs |
+|---|---|---|---|
+| RAM usage / Conso RAM | ~80 MB | ~500 MB+ | ~200 MB/tab |
+| Startup / Demarrage | < 1s | 5-10s | - |
+| App size / Taille | ~5 MB | ~250 MB | - |
+| Notifications | Native desktop | Built-in | Per-site |
+| Customizable / Personnalisable | Yes | Yes | No |
+
+Taurium is built with **Tauri v2** + **Rust** instead of Electron — no bundled Chromium, it uses your system's WebView2.
 
 ---
 
 ## Features / Fonctionnalites
 
-- Sidebar with service icons (emoji or custom PNG)
-- Desktop notifications with badge count detection
-- Lazy-loading webviews (loads on first click)
-- Hibernation of inactive tabs (10 min)
-- Drag & drop service reordering
-- Hot-reload: add/remove services without restart
-- Customizable sidebar color, accent color, icon size
-- Native context menu (reload, open in browser)
-- Keyboard shortcuts: `Ctrl+1-9` switch service, `Ctrl+,` settings
+- **All your services, one window** / Tous vos services, une fenetre
+- **Native notifications** with unread badge detection / Notifications natives avec detection des badges
+- **Add any website** as a service (emoji or PNG icon) / Ajoutez n'importe quel site web
+- **Drag & drop** to reorder services / Glisser-deposer pour reorganiser
+- **Hot-reload** — add or remove services without restarting / sans redemarrer
+- **Hibernation** — inactive tabs sleep after 10 min to save RAM
+- **Theming** — sidebar color, accent color, icon size / Couleurs et taille personnalisables
+- **Keyboard shortcuts** — `Ctrl+1-9` switch, `Ctrl+,` settings
 
-## Screenshot
+---
 
-```
- [S]  |                                  |
- [W]  |       < service webview >        |
- [G]  |                                  |
- [D]  |                                  |
-      |                                  |
- [*]  |__________________________________|
-```
+## Getting Started / Demarrage rapide
 
-## Installation
+### Download / Telecharger
 
-### Prerequisites / Prerequis
+Grab the latest `.exe` installer from [Releases](https://github.com/Emilien-Etadam/Taurium/releases).
 
-- [Node.js](https://nodejs.org/) >= 18
-- [Rust](https://rustup.rs/) (stable)
-- Windows: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) + WebView2 (included in Windows 10/11)
+### Build from source / Compiler depuis les sources
 
-### Dev
+**Prerequisites**: [Node.js](https://nodejs.org/) >= 18, [Rust](https://rustup.rs/), Windows Build Tools
 
 ```bash
 git clone https://github.com/Emilien-Etadam/Taurium.git
 cd Taurium
 npm install
-npm run tauri dev
+npm run tauri dev       # dev mode
+npm run tauri build     # production build
 ```
 
-### Build / Compilation
+The installer lands in `src-tauri/target/release/bundle/nsis/`.
+
+---
+
+## Contributing
+
+PRs welcome! The codebase is intentionally small and simple:
+
+```
+src/                  # Frontend (vanilla JS/HTML/CSS)
+  main.js             # Sidebar logic
+  settings.js         # Settings panel
+src-tauri/src/        # Backend (Rust)
+  lib.rs              # Commands & app setup
+  webviews.rs         # Webview management
+  config.rs           # Config & preferences
+```
 
 ```bash
-npm run tauri build
+npm run tauri dev     # Start with hot-reload
 ```
 
-The installer will be in `src-tauri/target/release/bundle/`:
-- **Windows**: `nsis/Taurium_0.1.0_x64-setup.exe` and `msi/Taurium_0.1.0_x64_en-US.msi`
-
-## Release Windows
-
-### Manual release / Release manuelle
-
-```bash
-npm run tauri build
-```
-
-Then distribute the `.exe` or `.msi` from `src-tauri/target/release/bundle/`.
-
-### Automated release with GitHub Actions
-
-Create `.github/workflows/release.yml`:
-
-```yaml
-name: Release
-
-on:
-  push:
-    tags:
-      - "v*"
-
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Taurium ${{ github.ref_name }}"
-          releaseBody: "Download the .exe installer below."
-          releaseDraft: true
-```
-
-Then to create a release:
-
-```bash
-# Update version in package.json and src-tauri/tauri.conf.json
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-GitHub Actions will build and attach the Windows installer to a draft release.
-
-## Tech Stack
-
-- **Frontend**: Vanilla JS, HTML, CSS
-- **Backend**: Rust + Tauri v2 (multi-webview, unstable feature)
-- **Notifications**: tauri-plugin-notification
-- **Config**: JSON files in app data directory
+---
 
 ## License
 
-MIT
+MIT — do whatever you want with it.
