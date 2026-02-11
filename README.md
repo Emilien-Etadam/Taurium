@@ -1,102 +1,102 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/built%20with-Tauri%20v2-blue?style=flat-square" />
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square&logo=windows" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
-</p>
+# Taurium ⚡
 
-# Taurium
-
-> **FR** Marre de jongler entre 15 onglets ? Taurium regroupe tous vos services web dans une seule app, legere et rapide.
+> **[EN]** Your web apps, minus the Electron bloat.
 >
-> **EN** Tired of juggling 15 browser tabs? Taurium brings all your web services together in one lightweight, fast app.
+> **[FR]** Vos web apps, sans la lourdeur d'Electron.
 
-WhatsApp, Slack, Gmail, Discord, Telegram, Messenger, Google Messages... tout au meme endroit. / ...all in one place.
+Taurium is a minimalist workspace browser built with **Tauri v2** and **Rust**. It aggregates all your essential services (Slack, WhatsApp, Gmail, Discord...) into a single, lightweight window.
 
-```
- +------+------------------------------------------+
- | [WA] |                                          |
- | [SL] |                                          |
- | [GM] |          WhatsApp Web                    |
- | [DC] |                                          |
- | [TG] |                (2) new messages           |
- |      |                                          |
- | [--] |                                          |
- |  [*] |                                          |
- +------+------------------------------------------+
-   48px              content area
-```
+Taurium est un navigateur d'espace de travail minimaliste construit avec **Tauri v2** et **Rust**. Il regroupe tous vos services essentiels (Slack, WhatsApp, Gmail, Discord...) dans une seule fenêtre ultra-légère.
 
 ---
 
-## Why Taurium? / Pourquoi Taurium ?
+## 📉 Benchmarks
 
-|  | Taurium | Ferdium | Browser tabs |
-|---|---|---|---|
-| RAM usage / Conso RAM | ~80 MB | ~500 MB+ | ~200 MB/tab |
-| Startup / Demarrage | < 1s | 5-10s | - |
-| App size / Taille | ~5 MB | ~250 MB | - |
-| Notifications | Native desktop | Built-in | Per-site |
-| Customizable / Personnalisable | Yes | Yes | No |
+Why switch? The numbers speak for themselves.
+Pourquoi changer ? Les chiffres parlent d'eux-mêmes.
 
-Taurium is built with **Tauri v2** + **Rust** instead of Electron — no bundled Chromium, it uses your system's WebView2.
-
----
-
-## Features / Fonctionnalites
-
-- **All your services, one window** / Tous vos services, une fenetre
-- **Native notifications** with unread badge detection / Notifications natives avec detection des badges
-- **Add any website** as a service (emoji or PNG icon) / Ajoutez n'importe quel site web
-- **Drag & drop** to reorder services / Glisser-deposer pour reorganiser
-- **Hot-reload** — add or remove services without restarting / sans redemarrer
-- **Hibernation** — inactive tabs sleep after 10 min to save RAM
-- **Theming** — sidebar color, accent color, icon size / Couleurs et taille personnalisables
-- **Keyboard shortcuts** — `Ctrl+1-9` switch, `Ctrl+,` settings
+| Metric | Taurium (Rust/WebView2) | Ferdium (Electron) | Browser Tabs (Chrome) |
+| :--- | :--- | :--- | :--- |
+| **Installer Size** | **~5 MB** | ~250 MB | N/A |
+| **RAM Idle** | **~80 MB** | ~600 MB+ | ~400 MB+ |
+| **Startup Time** | **< 1s** | ~5-10s | ~2s |
+| **Tab Management** | Auto-hibernation | Manual | Manual |
 
 ---
 
-## Getting Started / Demarrage rapide
+## ✨ Features / Fonctionnalités
 
-### Download / Telecharger
+**[EN]**
+*   **Zero Frameworks:** Pure Vanilla JS/HTML/CSS frontend. No React/Vue overhead.
+*   **Tab Hibernation:** Inactive services sleep after 10 minutes to save RAM.
+*   **Native Integration:** Desktop notifications and unread badges detection (scrapes `(3)` from titles).
+*   **Hot-Swap:** Add/remove services instantly without restarting.
+*   **Customization:** Drag & drop ordering, custom icons (Emoji/PNG), accent colors.
+*   **Shortcuts:** `Ctrl+1-9` to switch tabs, `Ctrl+,` for settings.
 
-Grab the latest `.exe` installer from [Releases](https://github.com/Emilien-Etadam/Taurium/releases).
+**[FR]**
+*   **Zéro Framework :** Frontend en Vanilla JS/HTML/CSS pur. Pas de surcharge React/Vue.
+*   **Hibernation :** Les services inactifs s'endorment après 10 min pour sauver la RAM.
+*   **Intégration Native :** Notifications bureau et détection des badges non-lus (récupère le `(3)` du titre).
+*   **Hot-Swap :** Ajoutez/supprimez des services à chaud sans redémarrer.
+*   **Personnalisation :** Réorganisation par glisser-déposer, icônes custom (Emoji/PNG), couleurs d'accent.
+*   **Raccourcis :** `Ctrl+1-9` pour naviguer, `Ctrl+,` pour les réglages.
 
-### Build from source / Compiler depuis les sources
+---
 
-**Prerequisites**: [Node.js](https://nodejs.org/) >= 18, [Rust](https://rustup.rs/), Windows Build Tools
+## 🚀 Get Started
+
+### Pre-requisites / Prérequis
+*   Rust (latest stable)
+*   Node.js (LTS) & npm
+*   System WebView2 (Installed by default on Windows 11/Modern macOS/Linux)
+
+### Installation
 
 ```bash
+# Clone the repo
 git clone https://github.com/Emilien-Etadam/Taurium.git
 cd Taurium
+
+# Install dependencies
 npm install
-npm run tauri dev       # dev mode
-npm run tauri build     # production build
-```
 
-The installer lands in `src-tauri/target/release/bundle/nsis/`.
+# Run in development mode
+npm run tauri dev
 
----
-
-## Contributing
-
-PRs welcome! The codebase is intentionally small and simple:
-
-```
-src/                  # Frontend (vanilla JS/HTML/CSS)
-  main.js             # Sidebar logic
-  settings.js         # Settings panel
-src-tauri/src/        # Backend (Rust)
-  lib.rs              # Commands & app setup
-  webviews.rs         # Webview management
-  config.rs           # Config & preferences
-```
-
-```bash
-npm run tauri dev     # Start with hot-reload
+# Build for production
+npm run tauri build
 ```
 
 ---
 
-## License
+## 🛠️ Contributing
 
-MIT — do whatever you want with it.
+We keep it simple. No complex state management, just DOM manipulation and Rust bindings.
+On garde ça simple. Pas de gestion d'état complexe, juste de la manipulation DOM et des bindings Rust.
+
+**Structure:**
+
+```text
+Taurium/
+├── src-tauri/      # Rust backend (Window management, tray, system calls)
+├── src/
+│   ├── index.html  # Main entry point
+│   ├── style.css   # Global styles (CSS Variables)
+│   ├── main.js     # Logic: Tab switching, hibernation, IPC
+│   └── assets/     # Icons & static files
+└── package.json
+```
+
+1.  Fork & Clone.
+2.  Create a feature branch (`git checkout -b feature/amazing-feature`).
+3.  Commit changes.
+4.  Open a Pull Request.
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.
+
+[GitHub Repository](https://github.com/Emilien-Etadam/Taurium)
