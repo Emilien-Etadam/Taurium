@@ -31,6 +31,7 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     }
 
     let count = extract_badge_count(title);
+    eprintln!("[Taurium] Title changed: '{}' → badge count: {} (service: {})", title, count, service_id);
     let state = app.state::<WebviewState>();
 
     // Update badge counts (hold lock briefly, then release before eval)
