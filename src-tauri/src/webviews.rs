@@ -25,16 +25,28 @@ pub struct WebviewState {
 
 /// Handle document title change: update badge count, send notification, refresh sidebar
 pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str, title: &str) {
-    let count = extract_badge_count(title);
-    let state = app.state::<WebviewState>();
-    let mut badges = state.badge_counts.lock().unwrap();
-    let prev_count = badges.get(service_id).copied().unwrap_or(0);
-    if count > 0 {
-        badges.insert(service_id.to_string(), count);
-    } else {
-        badges.remove(service_id);
+    // Skip blank/empty pages (avoid unnecessary work during webview creation)
+    if title.is_empty() || title == "about:blank" {
+        return;
     }
 
+    let count = extract_badge_count(title);
+    let state = app.state::<WebviewState>();
+
+    // Update badge counts (hold lock briefly, then release before eval)
+    let (prev_count, badges_json) = {
+        let mut badges = state.badge_counts.lock().unwrap();
+        let prev = badges.get(service_id).copied().unwrap_or(0);
+        if count > 0 {
+            badges.insert(service_id.to_string(), count);
+        } else {
+            badges.remove(service_id);
+        }
+        let json = serde_json::to_string(&*badges).unwrap_or_default();
+        (prev, json)
+    }; // badge_counts lock released here
+
+    // Send notification if badge count increased
     let prefs = load_preferences(&state.app_data_dir);
     if prefs.notifications_enabled && count > prev_count && prev_count > 0 {
         let new_msgs = count - prev_count;
@@ -53,8 +65,8 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
         app.notification().builder().title(service_name).body(body).auto_cancel().show().ok();
     }
 
+    // Update sidebar badges (lock already released, safe to eval)
     if let Some(sidebar) = app.get_webview("sidebar") {
-        let badges_json = serde_json::to_string(&*badges).unwrap_or_default();
         let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
         sidebar.eval(&js).ok();
     }

@@ -183,7 +183,9 @@ pub fn run() {
             settings_webview.hide()?;
             eprintln!("[Taurium] Settings webview created (hidden)");
 
-            // Pre-create ALL service webviews with about:blank (lazy loading)
+            // Pre-create ALL service webviews with about:blank (lazy loading).
+            // Must be done here in setup() because add_child() deadlocks
+            // when called from command handlers on Windows (WebView2 STA issue).
             for service in &services {
                 eprintln!("[Taurium] Pre-creating webview: {} (about:blank, lazy)", service.id);
                 webviews::create_service_webview(
