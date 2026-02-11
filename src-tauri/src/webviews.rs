@@ -3,12 +3,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::config::{extract_badge_count, load_preferences, Service};
 
 pub const SIDEBAR_WIDTH: f64 = 48.0;
-const HIBERNATION_SECS: u64 = 600; // 10 minutes
+const HIBERNATION_SECS: u64 = 3600; // 1 hour (keep services loaded for notifications)
 
 pub struct WebviewState {
     pub created_ids: Mutex<Vec<String>>,
@@ -66,10 +65,19 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
             }
         };
         eprintln!("[Taurium] Sending notification: {} - {}", service_name, body);
-        match app.notification().builder().title(service_name).body(&body).show() {
-            Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
-            Err(e) => eprintln!("[Taurium] Notification error: {}", e),
-        }
+        let title_owned = service_name.to_string();
+        let body_owned = body.clone();
+        std::thread::spawn(move || {
+            let result = notify_rust::Notification::new()
+                .summary(&title_owned)
+                .body(&body_owned)
+                .appname("Taurium")
+                .show();
+            match result {
+                Ok(_) => eprintln!("[Taurium] Notification displayed"),
+                Err(e) => eprintln!("[Taurium] Notification error: {}", e),
+            }
+        });
     }
 
     // Update sidebar badges (lock already released, safe to eval)
@@ -272,6 +280,25 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
     }
 
     Ok(has_new)
+}
+
+/// Navigate all services to their real URLs in the background (for notifications).
+/// Called after a delay so the UI is responsive first.
+pub fn background_load_all(app: &AppHandle, state: &WebviewState) {
+    let services = state.services.lock().unwrap().clone();
+    let mut navigated = state.navigated.lock().unwrap();
+
+    for service in &services {
+        if navigated.contains(&service.id) {
+            continue;
+        }
+        if let Some(webview) = app.get_webview(&service.id) {
+            eprintln!("[Taurium] Background-loading {} -> {}", service.id, service.url);
+            let js = format!("window.location.replace('{}')", service.url.replace('\'', "\\'"));
+            webview.eval(&js).ok();
+            navigated.insert(service.id.clone());
+        }
+    }
 }
 
 /// Hibernate inactive webviews to save memory

@@ -238,6 +238,15 @@ pub fn run() {
                 }
             });
 
+            // Background-load all services after 5 seconds (for notifications)
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                eprintln!("[Taurium] Background-loading all services for notifications...");
+                let state = app_handle.state::<WebviewState>();
+                webviews::background_load_all(&app_handle, &state);
+            });
+
             // Hibernation timer: check every 60 seconds
             let app_handle = app.handle().clone();
             std::thread::spawn(move || {
