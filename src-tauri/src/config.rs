@@ -18,11 +18,14 @@ pub struct Preferences {
     pub sidebar_color: String,
     #[serde(default = "default_accent_color")]
     pub accent_color: String,
+    #[serde(default = "default_notifications_enabled")]
+    pub notifications_enabled: bool,
 }
 
 fn default_icon_size() -> u32 { 40 }
 fn default_sidebar_color() -> String { "#16213e".to_string() }
 fn default_accent_color() -> String { "#e94560".to_string() }
+fn default_notifications_enabled() -> bool { true }
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -30,6 +33,7 @@ impl Default for Preferences {
             icon_size: default_icon_size(),
             sidebar_color: default_sidebar_color(),
             accent_color: default_accent_color(),
+            notifications_enabled: default_notifications_enabled(),
         }
     }
 }

@@ -1,7 +1,7 @@
 mod config;
 mod webviews;
 
-use config::{extract_badge_count, load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
+use config::{load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
 use std::collections::{HashMap, HashSet};
 use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
@@ -9,7 +9,7 @@ use webviews::WebviewState;
 
 #[tauri::command]
 fn get_services(state: tauri::State<WebviewState>) -> Vec<Service> {
-    state.services.clone()
+    state.services.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -51,7 +51,8 @@ fn restart_app(app: tauri::AppHandle) {
 #[tauri::command]
 fn reload_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), String> {
     eprintln!("[Taurium] Reloading service: {}", id);
-    if let Some(service) = state.services.iter().find(|s| s.id == id) {
+    let services = state.services.lock().unwrap();
+    if let Some(service) = services.iter().find(|s| s.id == id) {
         if let Some(webview) = app.get_webview(&id) {
             let url = service.url.clone();
             let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
@@ -68,7 +69,13 @@ fn get_badge_counts(state: tauri::State<WebviewState>) -> HashMap<String, u32> {
 
 #[tauri::command]
 fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Option<String> {
-    state.services.iter().find(|s| s.id == id).map(|s| s.url.clone())
+    state.services.lock().unwrap().iter().find(|s| s.id == id).map(|s| s.url.clone())
+}
+
+#[tauri::command]
+fn apply_services(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), String> {
+    let new_services = load_services(&state.app_data_dir);
+    webviews::apply_service_changes(&app, &state, new_services)
 }
 
 #[tauri::command]
@@ -116,6 +123,7 @@ pub struct ContextMenuTarget(std::sync::Mutex<Option<String>>);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -129,7 +137,7 @@ pub fn run() {
                 created_ids: std::sync::Mutex::new(Vec::new()),
                 active_id: std::sync::Mutex::new(None),
                 app_data_dir,
-                services: services.clone(),
+                services: std::sync::Mutex::new(services.clone()),
                 navigated: std::sync::Mutex::new(HashSet::new()),
                 last_activity: std::sync::Mutex::new(HashMap::new()),
                 badge_counts: std::sync::Mutex::new(HashMap::new()),
@@ -176,41 +184,15 @@ pub fn run() {
             eprintln!("[Taurium] Settings webview created (hidden)");
 
             // Pre-create ALL service webviews with about:blank (lazy loading)
-            let state = app.state::<WebviewState>();
             for service in &services {
                 eprintln!("[Taurium] Pre-creating webview: {} (about:blank, lazy)", service.id);
-
-                let url = WebviewUrl::External("about:blank".parse().unwrap());
-                let app_handle_badge = app.handle().clone();
-                let service_id_badge = service.id.clone();
-                let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
-                    .on_document_title_changed(move |_webview, title| {
-                        let count = extract_badge_count(&title);
-                        let state = app_handle_badge.state::<WebviewState>();
-                        let mut badges = state.badge_counts.lock().unwrap();
-                        if count > 0 {
-                            badges.insert(service_id_badge.clone(), count);
-                        } else {
-                            badges.remove(&service_id_badge);
-                        }
-                        // Notify sidebar to update badges
-                        if let Some(sidebar) = app_handle_badge.get_webview("sidebar") {
-                            let badges_json = serde_json::to_string(&*badges).unwrap_or_default();
-                            let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
-                            sidebar.eval(&js).ok();
-                        }
-                    });
-
-                let webview = window.add_child(
-                    builder,
-                    LogicalPosition::new(webviews::SIDEBAR_WIDTH, 0.0),
-                    LogicalSize::new(content_width, h),
+                webviews::create_service_webview(
+                    app.handle(),
+                    &window,
+                    service,
+                    content_width,
+                    h,
                 )?;
-
-                webview.hide()?;
-                state.created_ids.lock().unwrap().push(service.id.clone());
-
-                eprintln!("[Taurium] Webview '{}' created (hidden, lazy)", service.id);
             }
 
             // Listen for window resize events
@@ -232,7 +214,8 @@ pub fn run() {
                         "ctx_reload" => {
                             eprintln!("[Taurium] Context menu: reload {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
-                            if let Some(service) = state.services.iter().find(|s| s.id == service_id) {
+                            let services = state.services.lock().unwrap();
+                            if let Some(service) = services.iter().find(|s| s.id == service_id) {
                                 if let Some(webview) = app_handle_evt.get_webview(&service_id) {
                                     let url = service.url.clone();
                                     let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
@@ -243,7 +226,8 @@ pub fn run() {
                         "ctx_open_browser" => {
                             eprintln!("[Taurium] Context menu: open in browser {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
-                            if let Some(service) = state.services.iter().find(|s| s.id == service_id) {
+                            let services = state.services.lock().unwrap();
+                            if let Some(service) = services.iter().find(|s| s.id == service_id) {
                                 let _ = tauri_plugin_opener::open_url(&service.url, None::<&str>);
                             }
                         }
@@ -277,6 +261,7 @@ pub fn run() {
             show_service_context_menu,
             get_preferences,
             save_preferences_cmd,
+            apply_services,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

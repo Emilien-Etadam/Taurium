@@ -2,9 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Instant;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
+use tauri_plugin_notification::NotificationExt;
 
-use crate::config::Service;
+use crate::config::{extract_badge_count, load_preferences, Service};
 
 pub const SIDEBAR_WIDTH: f64 = 48.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
@@ -13,13 +14,95 @@ pub struct WebviewState {
     pub created_ids: Mutex<Vec<String>>,
     pub active_id: Mutex<Option<String>>,
     pub app_data_dir: PathBuf,
-    pub services: Vec<Service>,
+    pub services: Mutex<Vec<Service>>,
     /// Tracks which webviews have been navigated to their real URL
     pub navigated: Mutex<HashSet<String>>,
     /// Last time each webview was actively shown
     pub last_activity: Mutex<HashMap<String, Instant>>,
     /// Badge counts per service id
     pub badge_counts: Mutex<HashMap<String, u32>>,
+}
+
+/// Handle document title change: update badge count, send notification, refresh sidebar
+pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str, title: &str) {
+    let count = extract_badge_count(title);
+    let state = app.state::<WebviewState>();
+    let mut badges = state.badge_counts.lock().unwrap();
+    let prev_count = badges.get(service_id).copied().unwrap_or(0);
+    if count > 0 {
+        badges.insert(service_id.to_string(), count);
+    } else {
+        badges.remove(service_id);
+    }
+
+    let prefs = load_preferences(&state.app_data_dir);
+    if prefs.notifications_enabled && count > prev_count && prev_count > 0 {
+        let new_msgs = count - prev_count;
+        let body = if new_msgs == 1 {
+            format!("{} new notification", service_name)
+        } else {
+            format!("{} new notifications from {}", new_msgs, service_name)
+        };
+        app.notification().builder().title(service_name).body(body).auto_cancel().show().ok();
+    } else if prefs.notifications_enabled && count > 0 && prev_count == 0 {
+        let body = if count == 1 {
+            "1 notification".to_string()
+        } else {
+            format!("{} notifications", count)
+        };
+        app.notification().builder().title(service_name).body(body).auto_cancel().show().ok();
+    }
+
+    if let Some(sidebar) = app.get_webview("sidebar") {
+        let badges_json = serde_json::to_string(&*badges).unwrap_or_default();
+        let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
+        sidebar.eval(&js).ok();
+    }
+}
+
+/// Create a single service webview (hidden, lazy-loaded with about:blank)
+pub fn create_service_webview(
+    app: &AppHandle,
+    window: &tauri::Window,
+    service: &Service,
+    content_width: f64,
+    content_height: f64,
+) -> Result<(), String> {
+    let url = WebviewUrl::External("about:blank".parse().unwrap());
+    let app_clone = app.clone();
+    let sid = service.id.clone();
+    let sname = service.name.clone();
+
+    let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
+        .on_document_title_changed(move |_wv, title| {
+            handle_title_change(&app_clone, &sid, &sname, &title);
+        });
+
+    let webview = window
+        .add_child(
+            builder,
+            LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
+            LogicalSize::new(content_width, content_height),
+        )
+        .map_err(|e| e.to_string())?;
+
+    webview.hide().map_err(|e| e.to_string())?;
+
+    let state = app.state::<WebviewState>();
+    state.created_ids.lock().unwrap().push(service.id.clone());
+
+    eprintln!("[Taurium] Webview '{}' created (hidden, lazy)", service.id);
+    Ok(())
+}
+
+/// Get content area dimensions (width, height) excluding sidebar
+fn get_content_dimensions(app: &AppHandle) -> Option<(f64, f64)> {
+    let window = app.get_window("main")?;
+    let inner = window.inner_size().ok()?;
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let w = (inner.width as f64 / scale) - SIDEBAR_WIDTH;
+    let h = inner.height as f64 / scale;
+    Some((w, h))
 }
 
 fn hide_all(app: &AppHandle, state: &WebviewState) {
@@ -42,11 +125,11 @@ fn ensure_navigated(app: &AppHandle, state: &WebviewState, id: &str) {
     }
 
     // Find service URL
-    if let Some(service) = state.services.iter().find(|s| s.id == id) {
+    let services = state.services.lock().unwrap();
+    if let Some(service) = services.iter().find(|s| s.id == id) {
         if let Some(webview) = app.get_webview(id) {
             let url = service.url.clone();
             eprintln!("[Taurium] Lazy-loading {} -> {}", id, url);
-            // Use navigate or eval to go to the real URL
             let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
             webview.eval(&js).ok();
             navigated.insert(id.to_string());
@@ -57,6 +140,19 @@ fn ensure_navigated(app: &AppHandle, state: &WebviewState, id: &str) {
 pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), String> {
     eprintln!("[Taurium] Switching to service: {}", id);
     hide_all(app, state);
+
+    // If webview doesn't exist yet (new service added without restart), create it
+    if app.get_webview(id).is_none() {
+        let services = state.services.lock().unwrap();
+        if let Some(service) = services.iter().find(|s| s.id == id).cloned() {
+            drop(services);
+            if let Some(window) = app.get_window("main") {
+                if let Some((w, h)) = get_content_dimensions(app) {
+                    create_service_webview(app, &window, &service, w, h)?;
+                }
+            }
+        }
+    }
 
     // Lazy load: navigate to real URL on first click
     ensure_navigated(app, state, id);
@@ -127,6 +223,62 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
                 .ok();
         }
     }
+}
+
+/// Apply service changes: create new webviews, remove deleted ones, refresh sidebar
+pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<(), String> {
+    let old_ids: HashSet<String> = state.created_ids.lock().unwrap().iter().cloned().collect();
+    let new_ids: HashSet<String> = new_services.iter().map(|s| s.id.clone()).collect();
+
+    // Remove deleted service webviews
+    for id in old_ids.difference(&new_ids) {
+        eprintln!("[Taurium] Removing webview: {}", id);
+        if let Some(webview) = app.get_webview(id) {
+            // Navigate to blank and hide (safe cleanup)
+            webview.eval("window.location.replace('about:blank')").ok();
+            webview.hide().ok();
+        }
+        state.created_ids.lock().unwrap().retain(|i| i != id);
+        state.navigated.lock().unwrap().remove(id);
+        state.badge_counts.lock().unwrap().remove(id);
+        state.last_activity.lock().unwrap().remove(id);
+    }
+
+    // Create new service webviews
+    let window = app.get_window("main").ok_or("Window not found")?;
+    let (w, h) = get_content_dimensions(app).ok_or("Could not get window dimensions")?;
+
+    for service in &new_services {
+        if !old_ids.contains(&service.id) {
+            create_service_webview(app, &window, service, w, h)?;
+        }
+    }
+
+    // Update state
+    *state.services.lock().unwrap() = new_services;
+
+    // If active service was removed, clear it
+    {
+        let mut active = state.active_id.lock().unwrap();
+        if let Some(ref active_id) = *active {
+            if !new_ids.contains(active_id) {
+                *active = None;
+            }
+        }
+    }
+
+    // Refresh sidebar
+    if let Some(sidebar) = app.get_webview("sidebar") {
+        sidebar.eval("window.__reloadSidebar && window.__reloadSidebar()").ok();
+    }
+
+    eprintln!("[Taurium] Services applied ({} services, {} new, {} removed)",
+        new_ids.len(),
+        new_ids.difference(&old_ids).count(),
+        old_ids.difference(&new_ids).count()
+    );
+
+    Ok(())
 }
 
 /// Hibernate inactive webviews to save memory
