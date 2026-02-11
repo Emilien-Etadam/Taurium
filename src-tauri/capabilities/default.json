@@ -9,6 +9,7 @@
     "core:webview:default",
     "core:webview:allow-set-webview-size",
     "core:webview:allow-set-webview-position",
-    "opener:default"
+    "opener:default",
+    "notification:default"
   ]
 }

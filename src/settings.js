@@ -30,6 +30,7 @@ async function init() {
     document.getElementById("pref-icon-size-val").textContent = prefs.icon_size + "px";
     document.getElementById("pref-sidebar-color").value = prefs.sidebar_color;
     document.getElementById("pref-accent-color").value = prefs.accent_color;
+    document.getElementById("pref-notifications").checked = prefs.notifications_enabled;
   } catch (err) {
     document.body.innerHTML = "<pre style='color:red;padding:20px'>Error: " + err + "</pre>";
   }
@@ -343,8 +344,8 @@ async function persistServices() {
   if (!invoke) return;
   try {
     await invoke("save_services", { services });
+    await invoke("apply_services");
     hasChanges = true;
-    document.getElementById("restart-btn").classList.remove("hidden");
   } catch (err) {
     alert("Error saving: " + err);
   }
@@ -359,6 +360,7 @@ async function savePreferences() {
     icon_size: parseInt(document.getElementById("pref-icon-size").value),
     sidebar_color: document.getElementById("pref-sidebar-color").value,
     accent_color: document.getElementById("pref-accent-color").value,
+    notifications_enabled: document.getElementById("pref-notifications").checked,
   };
 
   try {
