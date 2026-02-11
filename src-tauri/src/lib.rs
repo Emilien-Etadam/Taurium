@@ -2,6 +2,7 @@ mod config;
 mod webviews;
 
 use config::{extract_badge_count, load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
+use tauri_plugin_notification::NotificationExt;
 use std::collections::{HashMap, HashSet};
 use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
@@ -116,6 +117,7 @@ pub struct ContextMenuTarget(std::sync::Mutex<Option<String>>);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -183,16 +185,53 @@ pub fn run() {
                 let url = WebviewUrl::External("about:blank".parse().unwrap());
                 let app_handle_badge = app.handle().clone();
                 let service_id_badge = service.id.clone();
+                let service_name_badge = service.name.clone();
                 let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
                     .on_document_title_changed(move |_webview, title| {
                         let count = extract_badge_count(&title);
                         let state = app_handle_badge.state::<WebviewState>();
                         let mut badges = state.badge_counts.lock().unwrap();
+                        let prev_count = badges.get(&service_id_badge).copied().unwrap_or(0);
                         if count > 0 {
                             badges.insert(service_id_badge.clone(), count);
                         } else {
                             badges.remove(&service_id_badge);
                         }
+
+                        // Send desktop notification if badge count increased
+                        let prefs = load_preferences(&state.app_data_dir);
+                        if prefs.notifications_enabled && count > prev_count && prev_count > 0 {
+                            let new_msgs = count - prev_count;
+                            let body = if new_msgs == 1 {
+                                format!("{} new notification", service_name_badge)
+                            } else {
+                                format!("{} new notifications from {}", new_msgs, service_name_badge)
+                            };
+                            app_handle_badge
+                                .notification()
+                                .builder()
+                                .title(&service_name_badge)
+                                .body(body)
+                                .auto_cancel()
+                                .show()
+                                .ok();
+                        } else if prefs.notifications_enabled && count > 0 && prev_count == 0 {
+                            // First time we detect badges (e.g. on page load)
+                            let body = if count == 1 {
+                                format!("1 notification")
+                            } else {
+                                format!("{} notifications", count)
+                            };
+                            app_handle_badge
+                                .notification()
+                                .builder()
+                                .title(&service_name_badge)
+                                .body(body)
+                                .auto_cancel()
+                                .show()
+                                .ok();
+                        }
+
                         // Notify sidebar to update badges
                         if let Some(sidebar) = app_handle_badge.get_webview("sidebar") {
                             let badges_json = serde_json::to_string(&*badges).unwrap_or_default();
