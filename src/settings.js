@@ -344,8 +344,11 @@ async function persistServices() {
   if (!invoke) return;
   try {
     await invoke("save_services", { services });
-    await invoke("apply_services");
+    const needsRestart = await invoke("apply_services");
     hasChanges = true;
+    if (needsRestart) {
+      document.getElementById("restart-btn").classList.remove("hidden");
+    }
   } catch (err) {
     alert("Error saving: " + err);
   }
