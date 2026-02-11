@@ -10,6 +10,44 @@ pub struct Service {
     pub icon: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Preferences {
+    #[serde(default = "default_icon_size")]
+    pub icon_size: u32,
+    #[serde(default = "default_sidebar_color")]
+    pub sidebar_color: String,
+    #[serde(default = "default_accent_color")]
+    pub accent_color: String,
+}
+
+fn default_icon_size() -> u32 { 40 }
+fn default_sidebar_color() -> String { "#16213e".to_string() }
+fn default_accent_color() -> String { "#e94560".to_string() }
+
+impl Default for Preferences {
+    fn default() -> Self {
+        Preferences {
+            icon_size: default_icon_size(),
+            sidebar_color: default_sidebar_color(),
+            accent_color: default_accent_color(),
+        }
+    }
+}
+
+pub fn load_preferences(app_data_dir: &PathBuf) -> Preferences {
+    let path = app_data_dir.join("preferences.json");
+    let content = fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
+    serde_json::from_str(&content).unwrap_or_default()
+}
+
+pub fn save_preferences(app_data_dir: &PathBuf, prefs: &Preferences) {
+    let path = app_data_dir.join("preferences.json");
+    fs::create_dir_all(app_data_dir).ok();
+    if let Ok(json) = serde_json::to_string_pretty(prefs) {
+        fs::write(&path, json).ok();
+    }
+}
+
 pub fn get_services_path(app_data_dir: &PathBuf) -> PathBuf {
     app_data_dir.join("services.json")
 }

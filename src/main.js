@@ -1,7 +1,6 @@
 let activeId = null;
 let settingsOpen = false;
 let services = [];
-let contextServiceId = null;
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -19,6 +18,10 @@ async function init() {
   }
 
   try {
+    // Load preferences and apply theme
+    const prefs = await invoke("get_preferences");
+    applyPreferences(prefs);
+
     const serviceList = document.getElementById("service-list");
     services = await invoke("get_services");
 
@@ -30,11 +33,25 @@ async function init() {
     services.forEach((service, index) => {
       const btn = document.createElement("div");
       btn.className = "service-icon";
-      btn.textContent = service.icon;
-      btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
       btn.dataset.id = service.id;
+      btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
+
+      // Support both emoji and image icons
+      if (service.icon.startsWith("data:image")) {
+        const img = document.createElement("img");
+        img.src = service.icon;
+        img.className = "icon-img";
+        btn.appendChild(img);
+      } else {
+        btn.textContent = service.icon;
+      }
+
       btn.addEventListener("click", () => switchService(service.id));
-      btn.addEventListener("contextmenu", (e) => showContextMenu(e, service.id));
+      // Right-click shows native context menu via Tauri
+      btn.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        invoke("show_service_context_menu", { id: service.id });
+      });
       serviceList.appendChild(btn);
     });
 
@@ -43,14 +60,6 @@ async function init() {
 
     // Keyboard shortcuts
     document.addEventListener("keydown", handleKeyboard);
-
-    // Close context menu on click
-    document.addEventListener("click", hideContextMenu);
-
-    // Context menu actions
-    document.querySelectorAll(".ctx-item").forEach((item) => {
-      item.addEventListener("click", handleContextAction);
-    });
 
     // Restore last active service
     const lastActive = await invoke("get_last_active_service");
@@ -64,6 +73,18 @@ async function init() {
     document.body.innerHTML += "<pre>Init error: " + err + "</pre>";
   }
 }
+
+function applyPreferences(prefs) {
+  const root = document.documentElement;
+  root.style.setProperty("--icon-size", prefs.icon_size + "px");
+  root.style.setProperty("--sidebar-color", prefs.sidebar_color);
+  root.style.setProperty("--accent-color", prefs.accent_color);
+}
+
+// Called from settings webview after prefs change (via Rust eval)
+window.__applyPreferences = function(prefs) {
+  applyPreferences(prefs);
+};
 
 async function switchService(id) {
   const invoke = getInvoke();
@@ -123,37 +144,6 @@ function handleKeyboard(e) {
     e.preventDefault();
     switchService(services[num - 1].id);
   }
-}
-
-// Context menu
-function showContextMenu(e, serviceId) {
-  e.preventDefault();
-  contextServiceId = serviceId;
-  const menu = document.getElementById("context-menu");
-  menu.style.left = e.clientX + "px";
-  menu.style.top = e.clientY + "px";
-  menu.classList.remove("hidden");
-}
-
-function hideContextMenu() {
-  document.getElementById("context-menu").classList.add("hidden");
-  contextServiceId = null;
-}
-
-async function handleContextAction(e) {
-  const action = e.target.dataset.action;
-  const invoke = getInvoke();
-  if (!invoke || !contextServiceId) return;
-
-  if (action === "reload") {
-    await invoke("reload_service", { id: contextServiceId });
-  } else if (action === "open-browser") {
-    const url = await invoke("get_service_url", { id: contextServiceId });
-    if (url && window.__TAURI__ && window.__TAURI__.opener) {
-      window.__TAURI__.opener.openUrl(url);
-    }
-  }
-  hideContextMenu();
 }
 
 // Badge update callback (called from Rust via eval)
