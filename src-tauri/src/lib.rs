@@ -183,17 +183,9 @@ pub fn run() {
             settings_webview.hide()?;
             eprintln!("[Taurium] Settings webview created (hidden)");
 
-            // Pre-create ALL service webviews with about:blank (lazy loading)
-            for service in &services {
-                eprintln!("[Taurium] Pre-creating webview: {} (about:blank, lazy)", service.id);
-                webviews::create_service_webview(
-                    app.handle(),
-                    &window,
-                    service,
-                    content_width,
-                    h,
-                )?;
-            }
+            // Service webviews are NOT pre-created at startup.
+            // They are created lazily on first click (in switch_to)
+            // to avoid blocking the UI thread during init.
 
             // Listen for window resize events
             let app_handle = app.handle().clone();
