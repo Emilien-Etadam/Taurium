@@ -73,7 +73,7 @@ fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Option<Stri
 }
 
 #[tauri::command]
-fn apply_services(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), String> {
+fn apply_services(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<bool, String> {
     let new_services = load_services(&state.app_data_dir);
     webviews::apply_service_changes(&app, &state, new_services)
 }

@@ -107,16 +107,6 @@ pub fn create_service_webview(
     Ok(())
 }
 
-/// Get content area dimensions (width, height) excluding sidebar
-fn get_content_dimensions(app: &AppHandle) -> Option<(f64, f64)> {
-    let window = app.get_window("main")?;
-    let inner = window.inner_size().ok()?;
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let w = (inner.width as f64 / scale) - SIDEBAR_WIDTH;
-    let h = inner.height as f64 / scale;
-    Some((w, h))
-}
-
 fn hide_all(app: &AppHandle, state: &WebviewState) {
     let ids = state.created_ids.lock().unwrap();
     for wv_id in ids.iter() {
@@ -153,23 +143,16 @@ pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), 
     eprintln!("[Taurium] Switching to service: {}", id);
     hide_all(app, state);
 
-    // If webview doesn't exist yet (new service added without restart), create it
-    if app.get_webview(id).is_none() {
-        let services = state.services.lock().unwrap();
-        if let Some(service) = services.iter().find(|s| s.id == id).cloned() {
-            drop(services);
-            if let Some(window) = app.get_window("main") {
-                if let Some((w, h)) = get_content_dimensions(app) {
-                    create_service_webview(app, &window, &service, w, h)?;
-                }
-            }
-        }
-    }
+    // Webviews are only created in setup() because add_child() deadlocks
+    // from command handlers on Windows. If the webview doesn't exist,
+    // the service was added after startup and requires a restart.
+    let webview = app.get_webview(id).ok_or_else(|| {
+        format!("Service '{}' requires a restart to be available", id)
+    })?;
 
     // Lazy load: navigate to real URL on first click
     ensure_navigated(app, state, id);
 
-    let webview = app.get_webview(id).ok_or(format!("Webview '{}' not found", id))?;
     webview.show().map_err(|e| e.to_string())?;
 
     *state.active_id.lock().unwrap() = Some(id.to_string());
@@ -237,8 +220,9 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
     }
 }
 
-/// Apply service changes: create new webviews, remove deleted ones, refresh sidebar
-pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<(), String> {
+/// Apply service changes: handle reorder/delete instantly, flag new services for restart.
+/// Returns true if restart is needed (new services were added).
+pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<bool, String> {
     let old_ids: HashSet<String> = state.created_ids.lock().unwrap().iter().cloned().collect();
     let new_ids: HashSet<String> = new_services.iter().map(|s| s.id.clone()).collect();
 
@@ -246,7 +230,6 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
     for id in old_ids.difference(&new_ids) {
         eprintln!("[Taurium] Removing webview: {}", id);
         if let Some(webview) = app.get_webview(id) {
-            // Navigate to blank and hide (safe cleanup)
             webview.eval("window.location.replace('about:blank')").ok();
             webview.hide().ok();
         }
@@ -256,15 +239,8 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
         state.last_activity.lock().unwrap().remove(id);
     }
 
-    // Create new service webviews
-    let window = app.get_window("main").ok_or("Window not found")?;
-    let (w, h) = get_content_dimensions(app).ok_or("Could not get window dimensions")?;
-
-    for service in &new_services {
-        if !old_ids.contains(&service.id) {
-            create_service_webview(app, &window, service, w, h)?;
-        }
-    }
+    // Check if new services were added (can't create webviews from command handler)
+    let has_new = new_services.iter().any(|s| !old_ids.contains(&s.id));
 
     // Update state
     *state.services.lock().unwrap() = new_services;
@@ -284,13 +260,11 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
         sidebar.eval("window.__reloadSidebar && window.__reloadSidebar()").ok();
     }
 
-    eprintln!("[Taurium] Services applied ({} services, {} new, {} removed)",
-        new_ids.len(),
-        new_ids.difference(&old_ids).count(),
-        old_ids.difference(&new_ids).count()
-    );
+    if has_new {
+        eprintln!("[Taurium] New services added — restart required for webview creation");
+    }
 
-    Ok(())
+    Ok(has_new)
 }
 
 /// Hibernate inactive webviews to save memory
