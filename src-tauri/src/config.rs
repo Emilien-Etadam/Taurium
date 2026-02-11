@@ -17,7 +17,6 @@ pub fn get_services_path(app_data_dir: &PathBuf) -> PathBuf {
 pub fn load_services(app_data_dir: &PathBuf) -> Vec<Service> {
     let path = get_services_path(app_data_dir);
 
-    // If services.json doesn't exist in app data dir, copy the default one
     if !path.exists() {
         let default_services = include_str!("../../services.json");
         fs::create_dir_all(app_data_dir).ok();
@@ -25,7 +24,13 @@ pub fn load_services(app_data_dir: &PathBuf) -> Vec<Service> {
     }
 
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "[]".to_string());
-    serde_json::from_str(&content).unwrap_or_default()
+    let services: Vec<Service> = serde_json::from_str(&content).unwrap_or_default();
+
+    // Filter out services with invalid URLs
+    services
+        .into_iter()
+        .filter(|s| s.url.parse::<url::Url>().is_ok())
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -54,3 +59,30 @@ pub fn save_state(app_data_dir: &PathBuf, state: &AppState) {
         fs::write(&path, json).ok();
     }
 }
+
+pub fn extract_badge_count(title: &str) -> u32 {
+    // Match patterns like "(3)", "(12)", "[5]" in page titles
+    let re_paren = regex_lite::Regex::new(r"\((\d+)\)").ok();
+    let re_bracket = regex_lite::Regex::new(r"\[(\d+)\]").ok();
+
+    if let Some(re) = re_paren {
+        if let Some(caps) = re.captures(title) {
+            if let Ok(n) = caps[1].parse::<u32>() {
+                if n > 0 {
+                    return n;
+                }
+            }
+        }
+    }
+    if let Some(re) = re_bracket {
+        if let Some(caps) = re.captures(title) {
+            if let Ok(n) = caps[1].parse::<u32>() {
+                if n > 0 {
+                    return n;
+                }
+            }
+        }
+    }
+    0
+}
+
