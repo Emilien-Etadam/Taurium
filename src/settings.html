@@ -28,8 +28,18 @@
         <span id="err-url" class="field-error hidden"></span>
       </label>
       <label>
-        Icon (emoji)
-        <input type="text" id="input-icon" placeholder="&#128231;" maxlength="4" />
+        Icon
+        <div class="icon-input-row">
+          <input type="text" id="input-icon" placeholder="&#128231; or use image" />
+          <label class="btn btn-file" title="Import PNG image">
+            &#128247;
+            <input type="file" id="input-icon-file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden />
+          </label>
+        </div>
+        <div id="icon-preview" class="icon-preview hidden">
+          <img id="icon-preview-img" />
+          <button id="icon-preview-clear" class="btn-icon delete" title="Remove">&times;</button>
+        </div>
       </label>
       <div class="form-actions">
         <button id="save-btn" class="btn btn-save">Save</button>
@@ -47,6 +57,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Appearance section -->
+    <div class="section-divider"></div>
+    <h2>Appearance</h2>
+
+    <div class="pref-row">
+      <label class="pref-label">Icon size</label>
+      <div class="pref-control">
+        <input type="range" id="pref-icon-size" min="24" max="64" step="4" value="40" />
+        <span id="pref-icon-size-val">40px</span>
+      </div>
+    </div>
+
+    <div class="pref-row">
+      <label class="pref-label">Sidebar color</label>
+      <div class="pref-control">
+        <input type="color" id="pref-sidebar-color" value="#16213e" />
+      </div>
+    </div>
+
+    <div class="pref-row">
+      <label class="pref-label">Accent color</label>
+      <div class="pref-control">
+        <input type="color" id="pref-accent-color" value="#e94560" />
+      </div>
+    </div>
+
+    <button id="save-prefs-btn" class="btn btn-save" style="margin-top:12px">Save Appearance</button>
 
     <div class="restart-section">
       <button id="restart-btn" class="btn btn-restart hidden">Restart to apply changes</button>
