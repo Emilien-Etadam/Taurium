@@ -146,6 +146,56 @@ function handleKeyboard(e) {
   }
 }
 
+// Reload sidebar when services change (called from Rust via eval)
+window.__reloadSidebar = async function() {
+  const invoke = getInvoke();
+  if (!invoke) return;
+
+  try {
+    services = await invoke("get_services");
+    const serviceList = document.getElementById("service-list");
+    serviceList.innerHTML = "";
+
+    const emptyState = document.getElementById("empty-state");
+    if (services.length === 0) {
+      emptyState.classList.remove("hidden");
+    } else {
+      emptyState.classList.add("hidden");
+    }
+
+    services.forEach((service, index) => {
+      const btn = document.createElement("div");
+      btn.className = "service-icon";
+      btn.dataset.id = service.id;
+      btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
+
+      if (service.icon.startsWith("data:image")) {
+        const img = document.createElement("img");
+        img.src = service.icon;
+        img.className = "icon-img";
+        btn.appendChild(img);
+      } else {
+        btn.textContent = service.icon;
+      }
+
+      btn.addEventListener("click", () => switchService(service.id));
+      btn.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        invoke("show_service_context_menu", { id: service.id });
+      });
+      serviceList.appendChild(btn);
+    });
+
+    updateActiveState();
+
+    // Re-apply badge counts
+    const badges = await invoke("get_badge_counts");
+    window.__updateBadges(badges);
+  } catch (err) {
+    console.error("Reload sidebar error:", err);
+  }
+};
+
 // Badge update callback (called from Rust via eval)
 window.__updateBadges = function(badges) {
   document.querySelectorAll(".service-icon").forEach((btn) => {
