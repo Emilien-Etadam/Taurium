@@ -12,14 +12,13 @@ ferdilight/
 │   ├── src/
 │   │   ├── main.rs          # setup app, commandes Tauri
 │   │   ├── webviews.rs      # gestion création/show/hide des webviews
-│   │   └── config.rs        # lecture services.json
+│   │   └── config.rs        # lecture/écriture services.json (app data), défauts au 1er lancement
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── src/
 │   ├── index.html            # sidebar + container
 │   ├── style.css             # sidebar style minimal, dark theme
 │   └── main.js               # appels invoke Tauri pour switch webview
-└── services.json              # [{id, name, url, icon}]
 ```
 
 ## Étapes de développement
@@ -29,15 +28,9 @@ ferdilight/
 - Vérifier que tout compile et se lance
 
 ### 2. Configuration des services
-- Créer `services.json` à la racine avec 3 services exemple :
-  ```json
-  [
-    {"id": "gmail", "name": "Gmail", "url": "https://mail.google.com", "icon": "📧"},
-    {"id": "slack", "name": "Slack", "url": "https://app.slack.com", "icon": "💬"},
-    {"id": "github", "name": "GitHub", "url": "https://github.com", "icon": "🐙"}
-  ]
-  ```
-- Implémenter `config.rs` : struct `Service`, lecture et parsing du JSON depuis le app data dir
+- Implémenter `config.rs` : struct `Service`, lecture et parsing du JSON depuis le répertoire **app data** de l’utilisateur (`app_data_dir`), pas depuis le dépôt.
+- Au **premier lancement**, si `services.json` est absent dans ce répertoire, le créer avec une liste de services par défaut (WhatsApp Web, Gmail, Discord, Slack) générée en code dans `config.rs`, puis charger comme d’habitude.
+- Les utilisateurs peuvent ensuite éditer ce `services.json` sur disque dans leur app data dir si besoin.
 
 ### 3. Gestion des webviews natives (webviews.rs)
 - Pour chaque service, créer une webview native Tauri v2 avec :
@@ -83,4 +76,4 @@ ferdilight/
 - Dark theme minimal
 - Mémoire minimale : webviews lazy-loaded, une seule visible à la fois
 - Chaque webview a son propre data_directory pour isolation complète des cookies/sessions
-- services.json éditable par l'utilisateur dans le app data dir
+- `services.json` : fichier dans le app data dir uniquement (généré au premier lancement avec des défauts, éditable par l’utilisateur)

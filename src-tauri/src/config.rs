@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Service {
@@ -8,6 +9,11 @@ pub struct Service {
     pub name: String,
     pub url: String,
     pub icon: String,
+    #[serde(default)]
+    pub user_agent: Option<String>,
+    /// Zoom CSS factor; absent/`None` is treated as 1.0 everywhere.
+    #[serde(default)]
+    pub zoom: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,13 +62,52 @@ pub fn get_services_path(app_data_dir: &PathBuf) -> PathBuf {
     app_data_dir.join("services.json")
 }
 
+/// Services créés au premier lancement (fichier absent).
+fn default_services() -> Vec<Service> {
+    vec![
+        Service {
+            id: "default-whatsapp".to_string(),
+            name: "WhatsApp Web".to_string(),
+            url: "https://web.whatsapp.com".to_string(),
+            icon: "💬".to_string(),
+            user_agent: None,
+            zoom: None,
+        },
+        Service {
+            id: "default-gmail".to_string(),
+            name: "Gmail".to_string(),
+            url: "https://mail.google.com".to_string(),
+            icon: "📧".to_string(),
+            user_agent: None,
+            zoom: None,
+        },
+        Service {
+            id: "default-discord".to_string(),
+            name: "Discord".to_string(),
+            url: "https://discord.com/app".to_string(),
+            icon: "🎮".to_string(),
+            user_agent: None,
+            zoom: None,
+        },
+        Service {
+            id: "default-slack".to_string(),
+            name: "Slack".to_string(),
+            url: "https://app.slack.com".to_string(),
+            icon: "💼".to_string(),
+            user_agent: None,
+            zoom: None,
+        },
+    ]
+}
+
 pub fn load_services(app_data_dir: &PathBuf) -> Vec<Service> {
     let path = get_services_path(app_data_dir);
 
     if !path.exists() {
-        let default_services = include_str!("../../services.json");
         fs::create_dir_all(app_data_dir).ok();
-        fs::write(&path, default_services).ok();
+        if let Ok(json) = serde_json::to_string_pretty(&default_services()) {
+            fs::write(&path, json).ok();
+        }
     }
 
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "[]".to_string());
@@ -72,6 +117,17 @@ pub fn load_services(app_data_dir: &PathBuf) -> Vec<Service> {
     services
         .into_iter()
         .filter(|s| s.url.parse::<url::Url>().is_ok())
+        .map(|mut s| {
+            if s.user_agent.as_deref() == Some("") {
+                s.user_agent = None;
+            }
+            if let Some(z) = s.zoom {
+                if !z.is_finite() || (z - 1.0).abs() < f64::EPSILON {
+                    s.zoom = None;
+                }
+            }
+            s
+        })
         .collect()
 }
 
@@ -104,27 +160,129 @@ pub fn save_state(app_data_dir: &PathBuf, state: &AppState) {
 
 pub fn extract_badge_count(title: &str) -> u32 {
     // Match patterns like "(3)", "(12)", "[5]" in page titles
-    let re_paren = regex_lite::Regex::new(r"\((\d+)\)").ok();
-    let re_bracket = regex_lite::Regex::new(r"\[(\d+)\]").ok();
+    static RE_PAREN: OnceLock<regex_lite::Regex> = OnceLock::new();
+    static RE_BRACKET: OnceLock<regex_lite::Regex> = OnceLock::new();
 
-    if let Some(re) = re_paren {
-        if let Some(caps) = re.captures(title) {
-            if let Ok(n) = caps[1].parse::<u32>() {
-                if n > 0 {
-                    return n;
-                }
+    let re_paren = RE_PAREN.get_or_init(|| {
+        regex_lite::Regex::new(r"\((\d+)\)").expect("valid badge regex pattern for parentheses")
+    });
+    let re_bracket = RE_BRACKET.get_or_init(|| {
+        regex_lite::Regex::new(r"\[(\d+)\]").expect("valid badge regex pattern for brackets")
+    });
+
+    if let Some(caps) = re_paren.captures(title) {
+        if let Ok(n) = caps[1].parse::<u32>() {
+            if n > 0 {
+                return n;
             }
         }
     }
-    if let Some(re) = re_bracket {
-        if let Some(caps) = re.captures(title) {
-            if let Ok(n) = caps[1].parse::<u32>() {
-                if n > 0 {
-                    return n;
-                }
+    if let Some(caps) = re_bracket.captures(title) {
+        if let Ok(n) = caps[1].parse::<u32>() {
+            if n > 0 {
+                return n;
             }
         }
     }
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_extract_badge_count() {
+        assert_eq!(extract_badge_count("(3) Slack"), 3);
+        assert_eq!(extract_badge_count("[12] Discord"), 12);
+        assert_eq!(extract_badge_count("Gmail - Inbox"), 0);
+        assert_eq!(extract_badge_count("(0) Nothing"), 0);
+        assert_eq!(extract_badge_count("((5)) nested"), 5);
+        assert_eq!(extract_badge_count(""), 0);
+        assert_eq!(extract_badge_count("about:blank"), 0);
+        assert_eq!(extract_badge_count("(999) many"), 999);
+    }
+
+    #[test]
+    fn test_load_services() {
+        let dir = tempdir().expect("tempdir should be created");
+        let app_data_dir = dir.path().to_path_buf();
+        let services_path = get_services_path(&app_data_dir);
+
+        // Missing file: should be created with built-in defaults and load successfully.
+        assert!(!services_path.exists());
+        let loaded_missing = load_services(&app_data_dir);
+        assert!(services_path.exists());
+        assert_eq!(loaded_missing.len(), 4);
+        let ids: Vec<&str> = loaded_missing.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "default-whatsapp",
+                "default-gmail",
+                "default-discord",
+                "default-slack"
+            ]
+        );
+
+        // Valid file: should load entries and filter invalid URLs.
+        let valid_json = r#"[
+            {"id":"ok","name":"Ok","url":"https://example.com","icon":"ok.svg"},
+            {"id":"bad-url","name":"Bad","url":"not-a-url","icon":"bad.svg"}
+        ]"#;
+        fs::write(&services_path, valid_json).expect("valid services.json should be written");
+        let loaded_valid = load_services(&app_data_dir);
+        assert_eq!(loaded_valid.len(), 1);
+        assert_eq!(loaded_valid[0].id, "ok");
+
+        // Invalid JSON: should fail gracefully to empty list.
+        fs::write(&services_path, "{ invalid json").expect("invalid services.json should be written");
+        let loaded_invalid = load_services(&app_data_dir);
+        assert!(loaded_invalid.is_empty());
+    }
+
+    #[test]
+    fn test_load_preferences() {
+        let dir = tempdir().expect("tempdir should be created");
+        let app_data_dir = dir.path().to_path_buf();
+        let prefs_path = app_data_dir.join("preferences.json");
+
+        // Empty file content: invalid JSON => default preferences.
+        fs::create_dir_all(&app_data_dir).expect("app data dir should be created");
+        fs::write(&prefs_path, "").expect("empty preferences.json should be written");
+        let empty = load_preferences(&app_data_dir);
+        assert_eq!(empty.icon_size, 40);
+        assert_eq!(empty.sidebar_color, "#16213e");
+        assert_eq!(empty.accent_color, "#e94560");
+        assert!(empty.notifications_enabled);
+
+        // Partial file: only icon_size provided, rest should use defaults.
+        fs::write(&prefs_path, r#"{"icon_size":72}"#)
+            .expect("partial preferences.json should be written");
+        let partial = load_preferences(&app_data_dir);
+        assert_eq!(partial.icon_size, 72);
+        assert_eq!(partial.sidebar_color, "#16213e");
+        assert_eq!(partial.accent_color, "#e94560");
+        assert!(partial.notifications_enabled);
+
+        // Full file: all values should be loaded.
+        fs::write(
+            &prefs_path,
+            r#"{
+                "icon_size": 24,
+                "sidebar_color": "#000000",
+                "accent_color": "#ffffff",
+                "notifications_enabled": false
+            }"#,
+        )
+        .expect("full preferences.json should be written");
+        let full = load_preferences(&app_data_dir);
+        assert_eq!(full.icon_size, 24);
+        assert_eq!(full.sidebar_color, "#000000");
+        assert_eq!(full.accent_color, "#ffffff");
+        assert!(!full.notifications_enabled);
+    }
 }
 

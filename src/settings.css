@@ -185,6 +185,12 @@ h2 {
   color: #aaa;
 }
 
+.form .field-hint {
+  margin-top: 6px;
+  margin-bottom: 0;
+  font-size: 12px;
+}
+
 .form input[type="text"],
 .form input[type="url"] {
   display: block;

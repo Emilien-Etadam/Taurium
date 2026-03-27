@@ -1,19 +1,35 @@
 mod config;
+mod error;
 mod webviews;
 
-use config::{load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
+use config::{load_preferences, load_services, load_state, save_services, save_state, AppState, Preferences, Service};
+use error::TauriumError;
 use std::collections::{HashMap, HashSet};
 use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use webviews::WebviewState;
 
+const TAURI_INVOKE_SHIM: &str = r#"
+if (!window.__TAURI__ && window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+  window.__TAURI__ = {
+    core: {
+      invoke: (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args)
+    }
+  };
+}
+"#;
+
 #[tauri::command]
-fn get_services(state: tauri::State<WebviewState>) -> Vec<Service> {
-    state.services.lock().unwrap().clone()
+fn get_services(state: tauri::State<WebviewState>) -> Result<Vec<Service>, TauriumError> {
+    let services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+    Ok(services.clone())
 }
 
 #[tauri::command]
-fn switch_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), String> {
+fn switch_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), TauriumError> {
     webviews::switch_to(&app, &state, &id)?;
 
     let app_state = AppState {
@@ -31,14 +47,14 @@ fn get_last_active_service(state: tauri::State<WebviewState>) -> Option<String> 
 }
 
 #[tauri::command]
-fn save_services(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), String> {
+fn save_services(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), TauriumError> {
     config::save_services(&state.app_data_dir, &services);
     eprintln!("[Taurium] Services saved ({} services)", services.len());
     Ok(())
 }
 
 #[tauri::command]
-fn open_settings(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), String> {
+fn open_settings(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), TauriumError> {
     webviews::show_settings(&app, &state)
 }
 
@@ -49,57 +65,79 @@ fn restart_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-fn reload_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), String> {
+fn reload_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), TauriumError> {
     eprintln!("[Taurium] Reloading service: {}", id);
-    let services = state.services.lock().unwrap();
+    let services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
     if let Some(service) = services.iter().find(|s| s.id == id) {
         if let Some(webview) = app.get_webview(&id) {
             let url = service.url.clone();
-            let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
-            webview.eval(&js).map_err(|e| e.to_string())?;
+            let js = webviews::window_location_replace_js(&url);
+            webview.eval(&js)?;
         }
     }
     Ok(())
 }
 
 #[tauri::command]
-fn get_badge_counts(state: tauri::State<WebviewState>) -> HashMap<String, u32> {
-    state.badge_counts.lock().unwrap().clone()
+fn get_badge_counts(state: tauri::State<WebviewState>) -> Result<HashMap<String, u32>, TauriumError> {
+    let badge_counts = state
+        .badge_counts
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+    Ok(badge_counts.clone())
 }
 
 #[tauri::command]
-fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Option<String> {
-    state.services.lock().unwrap().iter().find(|s| s.id == id).map(|s| s.url.clone())
+fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Result<Option<String>, TauriumError> {
+    let services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+    Ok(services.iter().find(|s| s.id == id).map(|s| s.url.clone()))
 }
 
 #[tauri::command]
-fn apply_services(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<bool, String> {
+fn apply_services(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), TauriumError> {
     let new_services = load_services(&state.app_data_dir);
     webviews::apply_service_changes(&app, &state, new_services)
 }
 
 #[tauri::command]
-fn show_service_context_menu(app: tauri::AppHandle, id: String) -> Result<(), String> {
+fn show_service_context_menu(app: tauri::AppHandle, id: String) -> Result<(), TauriumError> {
     eprintln!("[Taurium] Showing context menu for: {}", id);
 
     // Store the target service id for the menu event handler
-    *app.state::<ContextMenuTarget>().0.lock().unwrap() = Some(id);
+    *app.state::<ContextMenuTarget>()
+        .0
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))? = Some(id);
 
     let reload_item = MenuItemBuilder::with_id("ctx_reload", "Reload")
         .build(&app)
-        .map_err(|e| e.to_string())?;
+        ?;
+    let zoom_in_item = MenuItemBuilder::with_id("ctx_zoom_in", "Zoom In")
+        .build(&app)
+        ?;
+    let zoom_out_item = MenuItemBuilder::with_id("ctx_zoom_out", "Zoom Out")
+        .build(&app)
+        ?;
     let open_item = MenuItemBuilder::with_id("ctx_open_browser", "Open in browser")
         .build(&app)
-        .map_err(|e| e.to_string())?;
+        ?;
 
     let menu = MenuBuilder::new(&app)
         .item(&reload_item)
+        .item(&zoom_in_item)
+        .item(&zoom_out_item)
         .item(&open_item)
         .build()
-        .map_err(|e| e.to_string())?;
+        ?;
 
-    let window = app.get_window("main").ok_or("Window not found")?;
-    menu.popup(window).map_err(|e| e.to_string())?;
+    let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
+    menu.popup(window)?;
 
     Ok(())
 }
@@ -110,14 +148,66 @@ fn get_preferences(state: tauri::State<WebviewState>) -> Preferences {
 }
 
 #[tauri::command]
-fn save_preferences_cmd(state: tauri::State<WebviewState>, prefs: Preferences) -> Result<(), String> {
+fn save_preferences_cmd(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+    prefs: Preferences,
+) -> Result<String, TauriumError> {
     config::save_preferences(&state.app_data_dir, &prefs);
-    eprintln!("[Taurium] Preferences saved");
-    Ok(())
+    let prefs_json = serde_json::to_string(&prefs)?;
+
+    let sidebar = app
+        .get_webview("sidebar")
+        .ok_or_else(|| TauriumError::WebviewNotFound("sidebar".to_string()))?;
+
+    let js = format!(
+        "window.__applyPreferences && window.__applyPreferences({})",
+        prefs_json
+    );
+    sidebar
+        .eval(&js)
+        ?;
+
+    eprintln!("[Taurium] Preferences saved and applied to sidebar");
+    Ok(prefs_json)
 }
 
 // Holds the service ID targeted by the context menu
 pub struct ContextMenuTarget(std::sync::Mutex<Option<String>>);
+
+fn persist_and_apply_service_zoom(
+    app: &tauri::AppHandle,
+    state: &WebviewState,
+    service_id: &str,
+    delta: f64,
+) {
+    let new_zoom = {
+        let mut services = match state.services.lock() {
+            Ok(g) => g,
+            Err(e) => {
+                eprintln!("[Taurium] Mutex poisoned: {}", e);
+                return;
+            }
+        };
+        let Some(svc) = services.iter_mut().find(|s| s.id == service_id) else {
+            return;
+        };
+        let cur = svc.zoom.unwrap_or(1.0);
+        let new_z = ((cur + delta) * 10.0).round() / 10.0;
+        let new_z = new_z.clamp(0.5, 2.0);
+        svc.zoom = if (new_z - 1.0).abs() < 0.001 {
+            None
+        } else {
+            Some(new_z)
+        };
+        let z = svc.zoom;
+        save_services(&state.app_data_dir, &services);
+        z
+    };
+    if let Some(wv) = app.get_webview(service_id) {
+        webviews::apply_service_body_zoom(&wv, new_zoom);
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -161,7 +251,8 @@ pub fn run() {
             let sidebar_builder = tauri::webview::WebviewBuilder::new(
                 "sidebar",
                 WebviewUrl::App("index.html".into()),
-            );
+            )
+            .initialization_script(TAURI_INVOKE_SHIM);
             let _sidebar_webview = window.add_child(
                 sidebar_builder,
                 LogicalPosition::new(0.0, 0.0),
@@ -174,7 +265,8 @@ pub fn run() {
             let settings_builder = tauri::webview::WebviewBuilder::new(
                 "settings",
                 WebviewUrl::App("settings.html".into()),
-            );
+            )
+            .initialization_script(TAURI_INVOKE_SHIM);
             let settings_webview = window.add_child(
                 settings_builder,
                 LogicalPosition::new(webviews::SIDEBAR_WIDTH, 0.0),
@@ -188,13 +280,7 @@ pub fn run() {
             // when called from command handlers on Windows (WebView2 STA issue).
             for service in &services {
                 eprintln!("[Taurium] Pre-creating webview: {} (about:blank, lazy)", service.id);
-                webviews::create_service_webview(
-                    app.handle(),
-                    &window,
-                    service,
-                    content_width,
-                    h,
-                )?;
+                webviews::create_service_webview(app.handle(), service)?;
             }
 
             // Listen for window resize events
@@ -209,26 +295,64 @@ pub fn run() {
             // Handle context menu events
             app.on_menu_event(move |app_handle_evt, event| {
                 let menu_id = event.id().0.as_str();
-                let target_id = app_handle_evt.state::<ContextMenuTarget>().0.lock().unwrap().clone();
+                let target_id = match app_handle_evt.state::<ContextMenuTarget>().0.lock() {
+                    Ok(guard) => guard.clone(),
+                    Err(e) => {
+                        eprintln!("[Taurium] Mutex poisoned: {}", e);
+                        return;
+                    }
+                };
 
                 if let Some(service_id) = target_id {
                     match menu_id {
                         "ctx_reload" => {
                             eprintln!("[Taurium] Context menu: reload {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
-                            let services = state.services.lock().unwrap();
+                            let services = match state.services.lock() {
+                                Ok(guard) => guard,
+                                Err(e) => {
+                                    eprintln!("[Taurium] Mutex poisoned: {}", e);
+                                    return;
+                                }
+                            };
                             if let Some(service) = services.iter().find(|s| s.id == service_id) {
                                 if let Some(webview) = app_handle_evt.get_webview(&service_id) {
                                     let url = service.url.clone();
-                                    let js = format!("window.location.replace('{}')", url.replace('\'', "\\'"));
+                                    let js = webviews::window_location_replace_js(&url);
                                     webview.eval(&js).ok();
                                 }
                             }
                         }
+                        "ctx_zoom_in" => {
+                            eprintln!("[Taurium] Context menu: zoom in {}", service_id);
+                            let state = app_handle_evt.state::<WebviewState>();
+                            persist_and_apply_service_zoom(
+                                &app_handle_evt,
+                                &state,
+                                &service_id,
+                                0.1,
+                            );
+                        }
+                        "ctx_zoom_out" => {
+                            eprintln!("[Taurium] Context menu: zoom out {}", service_id);
+                            let state = app_handle_evt.state::<WebviewState>();
+                            persist_and_apply_service_zoom(
+                                &app_handle_evt,
+                                &state,
+                                &service_id,
+                                -0.1,
+                            );
+                        }
                         "ctx_open_browser" => {
                             eprintln!("[Taurium] Context menu: open in browser {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
-                            let services = state.services.lock().unwrap();
+                            let services = match state.services.lock() {
+                                Ok(guard) => guard,
+                                Err(e) => {
+                                    eprintln!("[Taurium] Mutex poisoned: {}", e);
+                                    return;
+                                }
+                            };
                             if let Some(service) = services.iter().find(|s| s.id == service_id) {
                                 let _ = tauri_plugin_opener::open_url(&service.url, None::<&str>);
                             }

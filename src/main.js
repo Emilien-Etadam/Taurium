@@ -6,6 +6,49 @@ function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
 
+function renderSidebar(services) {
+  const serviceList = document.getElementById("service-list");
+  const emptyState = document.getElementById("empty-state");
+
+  serviceList.innerHTML = "";
+
+  if (services.length === 0) {
+    emptyState.classList.remove("hidden");
+  } else {
+    emptyState.classList.add("hidden");
+  }
+
+  services.forEach((service, index) => {
+    const btn = document.createElement("div");
+    btn.className = "service-icon";
+    btn.dataset.id = service.id;
+    btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
+
+    // Support both emoji and image icons
+    if (service.icon.startsWith("data:image")) {
+      const img = document.createElement("img");
+      img.src = service.icon;
+      img.className = "icon-img";
+      btn.appendChild(img);
+    } else {
+      btn.textContent = service.icon;
+    }
+
+    btn.addEventListener("click", () => switchService(service.id));
+    // Right-click shows native context menu via Tauri
+    btn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const invoke = getInvoke();
+      if (!invoke) return;
+      invoke("show_service_context_menu", { id: service.id });
+    });
+
+    serviceList.appendChild(btn);
+  });
+
+  updateActiveState();
+}
+
 async function init() {
   let invoke = getInvoke();
   if (!invoke) {
@@ -22,38 +65,8 @@ async function init() {
     const prefs = await invoke("get_preferences");
     applyPreferences(prefs);
 
-    const serviceList = document.getElementById("service-list");
     services = await invoke("get_services");
-
-    // Show empty state if no services
-    if (services.length === 0) {
-      document.getElementById("empty-state").classList.remove("hidden");
-    }
-
-    services.forEach((service, index) => {
-      const btn = document.createElement("div");
-      btn.className = "service-icon";
-      btn.dataset.id = service.id;
-      btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
-
-      // Support both emoji and image icons
-      if (service.icon.startsWith("data:image")) {
-        const img = document.createElement("img");
-        img.src = service.icon;
-        img.className = "icon-img";
-        btn.appendChild(img);
-      } else {
-        btn.textContent = service.icon;
-      }
-
-      btn.addEventListener("click", () => switchService(service.id));
-      // Right-click shows native context menu via Tauri
-      btn.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        invoke("show_service_context_menu", { id: service.id });
-      });
-      serviceList.appendChild(btn);
-    });
+    renderSidebar(services);
 
     // Settings button
     document.getElementById("settings-btn").addEventListener("click", openSettings);
@@ -153,40 +166,7 @@ window.__reloadSidebar = async function() {
 
   try {
     services = await invoke("get_services");
-    const serviceList = document.getElementById("service-list");
-    serviceList.innerHTML = "";
-
-    const emptyState = document.getElementById("empty-state");
-    if (services.length === 0) {
-      emptyState.classList.remove("hidden");
-    } else {
-      emptyState.classList.add("hidden");
-    }
-
-    services.forEach((service, index) => {
-      const btn = document.createElement("div");
-      btn.className = "service-icon";
-      btn.dataset.id = service.id;
-      btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
-
-      if (service.icon.startsWith("data:image")) {
-        const img = document.createElement("img");
-        img.src = service.icon;
-        img.className = "icon-img";
-        btn.appendChild(img);
-      } else {
-        btn.textContent = service.icon;
-      }
-
-      btn.addEventListener("click", () => switchService(service.id));
-      btn.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        invoke("show_service_context_menu", { id: service.id });
-      });
-      serviceList.appendChild(btn);
-    });
-
-    updateActiveState();
+    renderSidebar(services);
 
     // Re-apply badge counts
     const badges = await invoke("get_badge_counts");

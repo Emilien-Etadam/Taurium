@@ -9,7 +9,7 @@
 <body>
   <div class="container">
     <h1>Services</h1>
-    <p class="hint">Drag to reorder. Adding new services requires restart.</p>
+    <p class="hint">Drag to reorder. Changes are applied instantly.</p>
 
     <div id="service-list"></div>
 
@@ -26,6 +26,16 @@
         URL
         <input type="url" id="input-url" placeholder="https://mail.google.com" />
         <span id="err-url" class="field-error hidden"></span>
+      </label>
+      <label>
+        User Agent (optional)
+        <input type="text" id="input-user-agent" placeholder="Leave empty for default" autocomplete="off" />
+        <p class="hint field-hint">Takes effect after you restart the app, or when the service webview is recreated.</p>
+      </label>
+      <label>
+        Zoom
+        <input type="range" id="input-zoom" min="0.5" max="2" step="0.1" value="1" />
+        <span id="input-zoom-val" class="field-hint">1.0×</span>
       </label>
       <label>
         Icon
@@ -99,11 +109,8 @@
 
     <button id="save-prefs-btn" class="btn btn-save" style="margin-top:12px">Save Settings</button>
 
-    <div class="restart-section">
-      <button id="restart-btn" class="btn btn-restart hidden">Restart to apply changes</button>
-    </div>
   </div>
 
-  <script src="settings.js"></script>
+  <script type="module" src="settings.js"></script>
 </body>
 </html>

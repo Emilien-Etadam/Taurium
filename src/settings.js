@@ -1,9 +1,17 @@
 let services = [];
 let editingIndex = -1;
-let hasChanges = false;
 let deleteIndex = -1;
 let dragSrcIndex = -1;
 let iconDataUrl = ""; // stores base64 data URL for image icon
+let savePrefsFeedbackTimer = null;
+
+function nanoid(size = 10) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+  let id = '';
+  const bytes = crypto.getRandomValues(new Uint8Array(size));
+  for (let i = 0; i < size; i++) id += alphabet[bytes[i] & 63];
+  return id;
+}
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -38,7 +46,6 @@ async function init() {
   document.getElementById("add-btn").addEventListener("click", showAddForm);
   document.getElementById("save-btn").addEventListener("click", saveForm);
   document.getElementById("cancel-btn").addEventListener("click", hideForm);
-  document.getElementById("restart-btn").addEventListener("click", restartApp);
   document.getElementById("confirm-yes").addEventListener("click", confirmDelete);
   document.getElementById("confirm-no").addEventListener("click", cancelDelete);
   document.getElementById("save-prefs-btn").addEventListener("click", savePreferences);
@@ -51,6 +58,12 @@ async function init() {
   // PNG icon file input
   document.getElementById("input-icon-file").addEventListener("change", handleIconFile);
   document.getElementById("icon-preview-clear").addEventListener("click", clearIconPreview);
+
+  const zoomInput = document.getElementById("input-zoom");
+  const zoomVal = document.getElementById("input-zoom-val");
+  zoomInput.addEventListener("input", () => {
+    zoomVal.textContent = Number(zoomInput.value).toFixed(1) + "×";
+  });
 }
 
 function renderServices() {
@@ -221,6 +234,9 @@ function showAddForm() {
   document.getElementById("input-url").value = "";
   document.getElementById("input-icon").value = "";
   document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
+  document.getElementById("input-user-agent").value = "";
+  document.getElementById("input-zoom").value = "1";
+  document.getElementById("input-zoom-val").textContent = "1.0×";
   document.getElementById("icon-preview").classList.add("hidden");
   document.getElementById("input-icon-file").value = "";
   clearErrors();
@@ -233,6 +249,10 @@ function showEditForm(index) {
   document.getElementById("form-title").textContent = "Edit Service";
   document.getElementById("input-name").value = s.name;
   document.getElementById("input-url").value = s.url;
+  document.getElementById("input-user-agent").value = s.user_agent ?? "";
+  const z = s.zoom != null && Number.isFinite(s.zoom) ? s.zoom : 1;
+  document.getElementById("input-zoom").value = String(z);
+  document.getElementById("input-zoom-val").textContent = Number(z).toFixed(1) + "×";
 
   // Handle image vs emoji icon
   if (s.icon.startsWith("data:image")) {
@@ -280,6 +300,11 @@ async function saveForm() {
   clearErrors();
   const name = document.getElementById("input-name").value.trim();
   const url = document.getElementById("input-url").value.trim();
+  const userAgentRaw = document.getElementById("input-user-agent").value.trim();
+  const user_agent = userAgentRaw.length > 0 ? userAgentRaw : null;
+  const zoomRaw = Number.parseFloat(document.getElementById("input-zoom").value);
+  const zoomStep = Number.isFinite(zoomRaw) ? Math.round(zoomRaw * 10) / 10 : 1;
+  const zoom = zoomStep !== 1 ? zoomStep : null;
   const emojiIcon = document.getElementById("input-icon").value.trim();
 
   let valid = true;
@@ -305,18 +330,7 @@ async function saveForm() {
 
   if (!valid) return;
 
-  const id = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-
-  // Check for duplicate IDs
-  const isDuplicate = services.some((s, i) => {
-    if (editingIndex >= 0 && i === editingIndex) return false;
-    return s.id === id;
-  });
-
-  if (isDuplicate) {
-    showError("input-name", "A service with this name already exists");
-    return;
-  }
+  const id = editingIndex === -1 ? nanoid(10) : services[editingIndex].id;
 
   // Determine icon: data URL > emoji > default
   let icon;
@@ -329,9 +343,17 @@ async function saveForm() {
   }
 
   if (editingIndex === -1) {
-    services.push({ id, name, url, icon });
+    services.push({ id, name, url, icon, user_agent, zoom });
   } else {
-    services[editingIndex] = { ...services[editingIndex], name, url, icon };
+    services[editingIndex] = {
+      ...services[editingIndex],
+      id,
+      name,
+      url,
+      icon,
+      user_agent,
+      zoom,
+    };
   }
 
   hideForm();
@@ -344,11 +366,7 @@ async function persistServices() {
   if (!invoke) return;
   try {
     await invoke("save_services", { services });
-    const needsRestart = await invoke("apply_services");
-    hasChanges = true;
-    if (needsRestart) {
-      document.getElementById("restart-btn").classList.remove("hidden");
-    }
+    await invoke("apply_services");
   } catch (err) {
     alert("Error saving: " + err);
   }
@@ -358,6 +376,7 @@ async function persistServices() {
 async function savePreferences() {
   const invoke = getInvoke();
   if (!invoke) return;
+  const savePrefsBtn = document.getElementById("save-prefs-btn");
 
   const prefs = {
     icon_size: parseInt(document.getElementById("pref-icon-size").value),
@@ -367,23 +386,22 @@ async function savePreferences() {
   };
 
   try {
-    await invoke("save_preferences_cmd", { prefs });
-    // Notify sidebar to apply new preferences immediately
-    // The sidebar is a sibling webview, we can't access it directly
-    // But we can restart to apply
-    document.getElementById("restart-btn").classList.remove("hidden");
+    const savedPrefsJson = await invoke("save_preferences_cmd", { prefs });
+    JSON.parse(savedPrefsJson); // Confirms backend returned serialized prefs.
+
+    if (savePrefsFeedbackTimer) clearTimeout(savePrefsFeedbackTimer);
+    const originalLabel = "Save Settings";
+    savePrefsBtn.textContent = "Saved";
+    savePrefsBtn.disabled = true;
+    savePrefsFeedbackTimer = setTimeout(() => {
+      savePrefsBtn.textContent = originalLabel;
+      savePrefsBtn.disabled = false;
+      savePrefsFeedbackTimer = null;
+    }, 1000);
   } catch (err) {
     alert("Error saving preferences: " + err);
-  }
-}
-
-async function restartApp() {
-  const invoke = getInvoke();
-  if (!invoke) return;
-  try {
-    await invoke("restart_app");
-  } catch (err) {
-    alert("Error restarting: " + err);
+    savePrefsBtn.textContent = "Save Settings";
+    savePrefsBtn.disabled = false;
   }
 }
 
