@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -44,13 +44,13 @@ impl Default for Preferences {
     }
 }
 
-pub fn load_preferences(app_data_dir: &PathBuf) -> Preferences {
+pub fn load_preferences(app_data_dir: &Path) -> Preferences {
     let path = app_data_dir.join("preferences.json");
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
     serde_json::from_str(&content).unwrap_or_default()
 }
 
-pub fn save_preferences(app_data_dir: &PathBuf, prefs: &Preferences) {
+pub fn save_preferences(app_data_dir: &Path, prefs: &Preferences) {
     let path = app_data_dir.join("preferences.json");
     fs::create_dir_all(app_data_dir).ok();
     if let Ok(json) = serde_json::to_string_pretty(prefs) {
@@ -58,7 +58,7 @@ pub fn save_preferences(app_data_dir: &PathBuf, prefs: &Preferences) {
     }
 }
 
-pub fn get_services_path(app_data_dir: &PathBuf) -> PathBuf {
+pub fn get_services_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("services.json")
 }
 
@@ -100,7 +100,7 @@ fn default_services() -> Vec<Service> {
     ]
 }
 
-pub fn load_services(app_data_dir: &PathBuf) -> Vec<Service> {
+pub fn load_services(app_data_dir: &Path) -> Vec<Service> {
     let path = get_services_path(app_data_dir);
 
     if !path.exists() {
@@ -136,13 +136,13 @@ pub struct AppState {
     pub last_active_service: Option<String>,
 }
 
-pub fn load_state(app_data_dir: &PathBuf) -> AppState {
+pub fn load_state(app_data_dir: &Path) -> AppState {
     let path = app_data_dir.join("state.json");
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
     serde_json::from_str(&content).unwrap_or_default()
 }
 
-pub fn save_services(app_data_dir: &PathBuf, services: &[Service]) {
+pub fn save_services(app_data_dir: &Path, services: &[Service]) {
     let path = get_services_path(app_data_dir);
     fs::create_dir_all(app_data_dir).ok();
     if let Ok(json) = serde_json::to_string_pretty(services) {
@@ -150,7 +150,7 @@ pub fn save_services(app_data_dir: &PathBuf, services: &[Service]) {
     }
 }
 
-pub fn save_state(app_data_dir: &PathBuf, state: &AppState) {
+pub fn save_state(app_data_dir: &Path, state: &AppState) {
     let path = app_data_dir.join("state.json");
     fs::create_dir_all(app_data_dir).ok();
     if let Ok(json) = serde_json::to_string_pretty(state) {
@@ -268,16 +268,16 @@ mod tests {
         assert!(partial.notifications_enabled);
 
         // Full file: all values should be loaded.
-        fs::write(
-            &prefs_path,
-            r#"{
-                "icon_size": 24,
-                "sidebar_color": "#000000",
-                "accent_color": "#ffffff",
-                "notifications_enabled": false
-            }"#,
-        )
-        .expect("full preferences.json should be written");
+        let sidebar_color = "#000000";
+        let accent_color = "#ffffff";
+        let json = serde_json::to_string(&serde_json::json!({
+            "icon_size": 24,
+            "sidebar_color": sidebar_color,
+            "accent_color": accent_color,
+            "notifications_enabled": false
+        }))
+        .expect("preferences JSON should serialize");
+        fs::write(&prefs_path, json).expect("full preferences.json should be written");
         let full = load_preferences(&app_data_dir);
         assert_eq!(full.icon_size, 24);
         assert_eq!(full.sidebar_color, "#000000");

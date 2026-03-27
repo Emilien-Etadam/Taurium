@@ -2,7 +2,7 @@ mod config;
 mod error;
 mod webviews;
 
-use config::{load_preferences, load_services, load_state, save_services, save_state, AppState, Preferences, Service};
+use config::{load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
 use error::TauriumError;
 use std::collections::{HashMap, HashSet};
 use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
@@ -47,7 +47,7 @@ fn get_last_active_service(state: tauri::State<WebviewState>) -> Option<String> 
 }
 
 #[tauri::command]
-fn save_services(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), TauriumError> {
+fn save_services_cmd(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), TauriumError> {
     config::save_services(&state.app_data_dir, &services);
     eprintln!("[Taurium] Services saved ({} services)", services.len());
     Ok(())
@@ -201,7 +201,7 @@ fn persist_and_apply_service_zoom(
             Some(new_z)
         };
         let z = svc.zoom;
-        save_services(&state.app_data_dir, &services);
+        config::save_services(&state.app_data_dir, &services);
         z
     };
     if let Some(wv) = app.get_webview(service_id) {
@@ -327,7 +327,7 @@ pub fn run() {
                             eprintln!("[Taurium] Context menu: zoom in {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
                             persist_and_apply_service_zoom(
-                                &app_handle_evt,
+                                app_handle_evt,
                                 &state,
                                 &service_id,
                                 0.1,
@@ -337,7 +337,7 @@ pub fn run() {
                             eprintln!("[Taurium] Context menu: zoom out {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
                             persist_and_apply_service_zoom(
-                                &app_handle_evt,
+                                app_handle_evt,
                                 &state,
                                 &service_id,
                                 -0.1,
@@ -378,7 +378,7 @@ pub fn run() {
             get_services,
             switch_service,
             get_last_active_service,
-            save_services,
+            save_services_cmd,
             open_settings,
             restart_app,
             reload_service,

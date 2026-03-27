@@ -365,7 +365,7 @@ async function persistServices() {
   const invoke = getInvoke();
   if (!invoke) return;
   try {
-    await invoke("save_services", { services });
+    await invoke("save_services_cmd", { services });
     await invoke("apply_services");
   } catch (err) {
     alert("Error saving: " + err);
