@@ -1,5 +1,6 @@
 mod config;
 mod error;
+mod recipes;
 mod webviews;
 
 use config::{
@@ -7,6 +8,7 @@ use config::{
     ServicesLoadInfo,
 };
 use error::TauriumError;
+use recipes::Recipe;
 use std::collections::{HashMap, HashSet};
 use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
 use tauri::{LogicalPosition, LogicalSize, Manager, WebviewUrl};
@@ -25,6 +27,11 @@ if (!window.__TAURI__ && window.__TAURI_INTERNALS__ && typeof window.__TAURI_INT
 #[derive(serde::Serialize)]
 pub struct ApplyServicesResponse {
     pub filtered_url_count: usize,
+}
+
+#[tauri::command]
+fn get_recipes() -> Vec<Recipe> {
+    recipes::load_recipes()
 }
 
 #[tauri::command]
@@ -412,6 +419,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_recipes,
             get_services,
             switch_service,
             get_last_active_service,
