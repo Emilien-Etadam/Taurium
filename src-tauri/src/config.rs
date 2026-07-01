@@ -28,10 +28,18 @@ pub struct Preferences {
     pub notifications_enabled: bool,
 }
 
-fn default_icon_size() -> u32 { 40 }
-fn default_sidebar_color() -> String { "#16213e".to_string() }
-fn default_accent_color() -> String { "#e94560".to_string() }
-fn default_notifications_enabled() -> bool { true }
+fn default_icon_size() -> u32 {
+    40
+}
+fn default_sidebar_color() -> String {
+    "#16213e".to_string()
+}
+fn default_accent_color() -> String {
+    "#e94560".to_string()
+}
+fn default_notifications_enabled() -> bool {
+    true
+}
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -158,6 +166,9 @@ pub fn save_state(app_data_dir: &Path, state: &AppState) {
     }
 }
 
+/// Upper bound for badge counts extracted from page titles (years, IDs, etc. are ignored).
+const MAX_BADGE_COUNT: u32 = 999;
+
 pub fn extract_badge_count(title: &str) -> u32 {
     // Match patterns like "(3)", "(12)", "[5]" in page titles
     static RE_PAREN: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -172,14 +183,14 @@ pub fn extract_badge_count(title: &str) -> u32 {
 
     if let Some(caps) = re_paren.captures(title) {
         if let Ok(n) = caps[1].parse::<u32>() {
-            if n > 0 {
+            if n > 0 && n <= MAX_BADGE_COUNT {
                 return n;
             }
         }
     }
     if let Some(caps) = re_bracket.captures(title) {
         if let Ok(n) = caps[1].parse::<u32>() {
-            if n > 0 {
+            if n > 0 && n <= MAX_BADGE_COUNT {
                 return n;
             }
         }
@@ -203,6 +214,9 @@ mod tests {
         assert_eq!(extract_badge_count(""), 0);
         assert_eq!(extract_badge_count("about:blank"), 0);
         assert_eq!(extract_badge_count("(999) many"), 999);
+        assert_eq!(extract_badge_count("(2025) Rapport"), 0);
+        assert_eq!(extract_badge_count("(1500)"), 0);
+        assert_eq!(extract_badge_count("(99)"), 99);
     }
 
     #[test]
@@ -238,7 +252,8 @@ mod tests {
         assert_eq!(loaded_valid[0].id, "ok");
 
         // Invalid JSON: should fail gracefully to empty list.
-        fs::write(&services_path, "{ invalid json").expect("invalid services.json should be written");
+        fs::write(&services_path, "{ invalid json")
+            .expect("invalid services.json should be written");
         let loaded_invalid = load_services(&app_data_dir);
         assert!(loaded_invalid.is_empty());
     }
@@ -285,4 +300,3 @@ mod tests {
         assert!(!full.notifications_enabled);
     }
 }
-

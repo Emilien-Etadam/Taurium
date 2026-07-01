@@ -12,6 +12,12 @@ use crate::error::TauriumError;
 pub const SIDEBAR_WIDTH: f64 = 48.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
+// Notification body templates (English)
+const NOTIFY_SINGLE_FROM: &str = "1 notification from {service}";
+const NOTIFY_MULTIPLE_FROM: &str = "{count} notifications from {service}";
+const NOTIFY_NEW_SINGLE: &str = "New notification from {service}";
+const NOTIFY_NEW_MULTIPLE: &str = "{count} new notifications from {service}";
+
 pub struct WebviewState {
     pub created_ids: Mutex<Vec<String>>,
     pub active_id: Mutex<Option<String>>,
@@ -33,7 +39,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     }
 
     let count = extract_badge_count(title);
-    eprintln!("[Taurium] Title changed: '{}' → badge count: {} (service: {})", title, count, service_id);
+    eprintln!(
+        "[Taurium] Title changed: '{}' → badge count: {} (service: {})",
+        title, count, service_id
+    );
     let state = app.state::<WebviewState>();
 
     // Update badge counts (hold lock briefly, then release before eval)
@@ -59,22 +68,18 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     let prefs = load_preferences(&state.app_data_dir);
     let should_notify = prefs.notifications_enabled && count > prev_count;
     if should_notify && count > 0 {
-        let body = if prev_count == 0 {
-            if count == 1 {
-                format!("1 notification from {}", service_name)
-            } else {
-                format!("{} notifications from {}", count, service_name)
-            }
-        } else {
-            let new_msgs = count - prev_count;
-            if new_msgs == 1 {
-                format!("New notification from {}", service_name)
-            } else {
-                format!("{} new notifications from {}", new_msgs, service_name)
-            }
-        };
-        eprintln!("[Taurium] Sending notification: {} - {}", service_name, body);
-        match app.notification().builder().title(service_name).body(&body).show() {
+        let body = notification_body(prev_count, count, service_name);
+        eprintln!(
+            "[Taurium] Sending notification: {} - {}",
+            service_name, body
+        );
+        match app
+            .notification()
+            .builder()
+            .title(service_name)
+            .body(&body)
+            .show()
+        {
             Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
             Err(e) => eprintln!("[Taurium] Notification error: {}", e),
         }
@@ -82,7 +87,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Update sidebar badges (lock already released, safe to eval)
     if let Some(sidebar) = app.get_webview("sidebar") {
-        let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
+        let js = format!(
+            "window.__updateBadges && window.__updateBadges({})",
+            badges_json
+        );
         sidebar.eval(&js).ok();
     }
 
@@ -105,6 +113,48 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     }
 }
 
+fn notification_body(prev_count: u32, count: u32, service_name: &str) -> String {
+    if prev_count == 0 {
+        if count == 1 {
+            NOTIFY_SINGLE_FROM.replace("{service}", service_name)
+        } else {
+            NOTIFY_MULTIPLE_FROM
+                .replace("{count}", &count.to_string())
+                .replace("{service}", service_name)
+        }
+    } else {
+        let new_msgs = count - prev_count;
+        if new_msgs == 1 {
+            NOTIFY_NEW_SINGLE.replace("{service}", service_name)
+        } else {
+            NOTIFY_NEW_MULTIPLE
+                .replace("{count}", &new_msgs.to_string())
+                .replace("{service}", service_name)
+        }
+    }
+}
+
+/// Reload a service webview by navigating it back to its configured URL.
+pub fn reload_service_webview(
+    app: &AppHandle,
+    state: &WebviewState,
+    id: &str,
+) -> Result<(), TauriumError> {
+    eprintln!("[Taurium] Reloading service: {}", id);
+    let services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+    if let Some(service) = services.iter().find(|s| s.id == id) {
+        if let Some(webview) = app.get_webview(id) {
+            let url = service.url.clone();
+            let js = window_location_replace_js(&url);
+            webview.eval(&js)?;
+        }
+    }
+    Ok(())
+}
+
 fn window_content_size(window: &tauri::Window) -> Result<(f64, f64), TauriumError> {
     let inner_size = window.inner_size()?;
     let scale = window.scale_factor()?;
@@ -125,16 +175,14 @@ fn create_service_webview_inner(
     let sid = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
-    let data_dir = state
-        .app_data_dir
-        .join("webview_data")
-        .join(&service.id);
+    let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
-    let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
-        .on_document_title_changed(move |_wv, title| {
+    let builder = tauri::webview::WebviewBuilder::new(&service.id, url).on_document_title_changed(
+        move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
-        });
+        },
+    );
     let builder = if let Some(ref ua) = service.user_agent {
         builder.user_agent(ua)
     } else {
@@ -143,13 +191,11 @@ fn create_service_webview_inner(
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     let builder = builder.data_directory(data_dir.clone());
 
-    let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
-            LogicalSize::new(content_width, content_height),
-        )
-        ?;
+    let webview = window.add_child(
+        builder,
+        LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
+        LogicalSize::new(content_width, content_height),
+    )?;
 
     webview.hide()?;
 
@@ -165,13 +211,8 @@ fn create_service_webview_inner(
 
 /// Create a single service webview (hidden, lazy-loaded with about:blank).
 /// Safe to call from command handlers: it posts add_child() on the main thread.
-pub fn create_service_webview(
-    app: &AppHandle,
-    service: &Service,
-) -> Result<(), TauriumError> {
-    let window = app
-        .get_window("main")
-        .ok_or(TauriumError::WindowNotFound)?;
+pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), TauriumError> {
+    let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
     let (content_width, content_height) = window_content_size(&window)?;
 
     let app_handle = app.clone();
@@ -180,18 +221,16 @@ pub fn create_service_webview(
     let service_id = service.id.clone();
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), TauriumError>>();
 
-    window
-        .run_on_main_thread(move || {
-            let result = create_service_webview_inner(
-                &app_handle,
-                &window_handle,
-                &service_cloned,
-                content_width,
-                content_height,
-            );
-            let _ = tx.send(result);
-        })
-        ?;
+    window.run_on_main_thread(move || {
+        let result = create_service_webview_inner(
+            &app_handle,
+            &window_handle,
+            &service_cloned,
+            content_width,
+            content_height,
+        );
+        let _ = tx.send(result);
+    })?;
 
     match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(result) => result,
@@ -263,11 +302,9 @@ pub(crate) fn apply_service_body_zoom(webview: &tauri::Webview, zoom: Option<f64
     let js = if (z - 1.0).abs() < f64::EPSILON {
         r#"try{if(document.body)document.body.style.zoom="";}catch(e){}"#.to_string()
     } else {
-        let literal = serde_json::to_string(&format!("{z}"))
-            .unwrap_or_else(|_| "\"1\"".to_string());
-        format!(
-            "try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}"
-        )
+        let literal =
+            serde_json::to_string(&format!("{z}")).unwrap_or_else(|_| "\"1\"".to_string());
+        format!("try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}")
     };
     webview.eval(&js).ok();
 }
@@ -344,19 +381,18 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
         Some(w) => w,
         None => return,
     };
-    let inner_size = match window.inner_size() {
-        Ok(s) => s,
+    let (width, height) = match window_content_size(&window) {
+        Ok(size) => size,
         Err(_) => return,
     };
-    let scale = window.scale_factor().unwrap_or(1.0);
-
-    let width = (inner_size.width as f64 / scale) - SIDEBAR_WIDTH;
-    let height = inner_size.height as f64 / scale;
 
     // Resize sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
-            .set_size(tauri::Size::Logical(LogicalSize::new(SIDEBAR_WIDTH, height)))
+            .set_size(tauri::Size::Logical(LogicalSize::new(
+                SIDEBAR_WIDTH,
+                height,
+            )))
             .ok();
     }
 
@@ -366,7 +402,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
             .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
             .ok();
         settings
-            .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+            .set_position(tauri::Position::Logical(LogicalPosition::new(
+                SIDEBAR_WIDTH,
+                0.0,
+            )))
             .ok();
     }
 
@@ -384,14 +423,21 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
                 .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
                 .ok();
             webview
-                .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+                .set_position(tauri::Position::Logical(LogicalPosition::new(
+                    SIDEBAR_WIDTH,
+                    0.0,
+                )))
                 .ok();
         }
     }
 }
 
 /// Apply service changes: handle reorder/delete/add instantly.
-pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<(), TauriumError> {
+pub fn apply_service_changes(
+    app: &AppHandle,
+    state: &WebviewState,
+    new_services: Vec<Service>,
+) -> Result<(), TauriumError> {
     let old_ids: HashSet<String> = state
         .created_ids
         .lock()
@@ -457,7 +503,9 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
 
     // Refresh sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
-        sidebar.eval("window.__reloadSidebar && window.__reloadSidebar()").ok();
+        sidebar
+            .eval("window.__reloadSidebar && window.__reloadSidebar()")
+            .ok();
     }
 
     Ok(())
