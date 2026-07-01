@@ -4,12 +4,40 @@ let services = [];
 let pendingServiceId = null;
 let overlayHideTimer = null;
 
+// Per-service load state for the status dot: "idle" | "loading" | "loaded"
+const serviceStates = {};
+
 const OVERLAY_FALLBACK_MS = 10000;
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+}
+
+function makeGlyphWrap(service) {
+  const wrap = document.createElement("span");
+  wrap.className = "glyph-wrap";
+
+  // Support both emoji and image icons
+  if (service.icon.startsWith("data:image")) {
+    const img = document.createElement("img");
+    img.src = service.icon;
+    img.className = "icon-img";
+    img.alt = "";
+    wrap.appendChild(img);
+  } else {
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    glyph.textContent = service.icon;
+    wrap.appendChild(glyph);
+  }
+
+  const dot = document.createElement("span");
+  dot.className = "status-dot " + (serviceStates[service.id] || "idle");
+  wrap.appendChild(dot);
+
+  return wrap;
 }
 
 function renderSidebar(services) {
@@ -24,7 +52,24 @@ function renderSidebar(services) {
     emptyState.classList.add("hidden");
   }
 
+  let lastGroup = null;
   services.forEach((service, index) => {
+    // Emit a group header whenever the group changes (order is preserved as stored)
+    const group = service.group || null;
+    if (group && group !== lastGroup) {
+      const header = document.createElement("div");
+      header.className = "group-header";
+      const line = document.createElement("span");
+      line.className = "group-line";
+      const text = document.createElement("span");
+      text.className = "group-text";
+      text.textContent = group;
+      header.appendChild(line);
+      header.appendChild(text);
+      serviceList.appendChild(header);
+    }
+    lastGroup = group;
+
     const btn = document.createElement("div");
     btn.className = "service-icon";
     btn.dataset.id = service.id;
@@ -34,16 +79,12 @@ function renderSidebar(services) {
     btn.setAttribute("tabindex", "0");
     btn.setAttribute("aria-label", service.name);
 
-    // Support both emoji and image icons
-    if (service.icon.startsWith("data:image")) {
-      const img = document.createElement("img");
-      img.src = service.icon;
-      img.className = "icon-img";
-      img.alt = "";
-      btn.appendChild(img);
-    } else {
-      btn.textContent = service.icon;
-    }
+    btn.appendChild(makeGlyphWrap(service));
+
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = service.name;
+    btn.appendChild(label);
 
     btn.addEventListener("click", () => switchService(service.id));
     btn.addEventListener("keydown", (e) => {
@@ -126,6 +167,17 @@ window.__applyPreferences = function(prefs) {
   applyPreferences(prefs);
 };
 
+// Update the status dot of a single service without rebuilding the sidebar
+function setServiceState(id, state) {
+  serviceStates[id] = state;
+  document.querySelectorAll(".service-icon").forEach((btn) => {
+    if (btn.dataset.id === id) {
+      const dot = btn.querySelector(".status-dot");
+      if (dot) dot.className = "status-dot " + state;
+    }
+  });
+}
+
 function showLoadingOverlay() {
   const overlay = document.getElementById("loading-overlay");
   if (!overlay) return;
@@ -152,8 +204,11 @@ function hideLoadingOverlay() {
   pendingServiceId = null;
 }
 
-// Called from Rust when the service webview has finished loading
+// Called from Rust when a service webview reports a real document title (loaded)
 window.__serviceLoaded = function(id) {
+  // Any service that reports a title is considered loaded (incl. background ones)
+  setServiceState(id, "loaded");
+
   if (id === pendingServiceId) {
     hideLoadingOverlay();
   }
@@ -165,6 +220,9 @@ async function switchService(id) {
 
   pendingServiceId = id;
   showLoadingOverlay();
+  if (serviceStates[id] !== "loaded") {
+    setServiceState(id, "loading");
+  }
 
   try {
     await invoke("switch_service", { id });
@@ -173,6 +231,9 @@ async function switchService(id) {
     updateActiveState();
     overlayHideTimer = setTimeout(hideLoadingOverlay, OVERLAY_FALLBACK_MS);
   } catch (err) {
+    if (serviceStates[id] !== "loaded") {
+      setServiceState(id, "idle");
+    }
     showToast("Could not switch service: " + formatInvokeError(err));
     console.error("Switch error:", err);
     hideLoadingOverlay();
@@ -241,8 +302,11 @@ window.__reloadSidebar = async function() {
 window.__updateBadges = function(badges) {
   document.querySelectorAll(".service-icon").forEach((btn) => {
     const id = btn.dataset.id;
+    const wrap = btn.querySelector(".glyph-wrap");
+    if (!wrap) return;
+
     // Remove existing badge
-    const existing = btn.querySelector(".badge");
+    const existing = wrap.querySelector(".badge");
     if (existing) existing.remove();
 
     const count = badges[id];
@@ -250,7 +314,7 @@ window.__updateBadges = function(badges) {
       const badge = document.createElement("span");
       badge.className = "badge";
       badge.textContent = count > 99 ? "99+" : count;
-      btn.appendChild(badge);
+      wrap.appendChild(badge);
     }
   });
 };

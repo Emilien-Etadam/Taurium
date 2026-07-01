@@ -15,6 +15,10 @@ pub struct Service {
     /// Zoom CSS factor; absent/`None` is treated as 1.0 everywhere.
     #[serde(default)]
     pub zoom: Option<f64>,
+    /// Optional group label used to cluster services in the sidebar.
+    /// Absent/`None`/empty means the service is ungrouped.
+    #[serde(default)]
+    pub group: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,6 +180,7 @@ fn default_services() -> Vec<Service> {
             icon: "💬".to_string(),
             user_agent: None,
             zoom: None,
+            group: Some("Personnel".to_string()),
         },
         Service {
             id: "default-gmail".to_string(),
@@ -184,6 +189,7 @@ fn default_services() -> Vec<Service> {
             icon: "📧".to_string(),
             user_agent: None,
             zoom: None,
+            group: Some("Personnel".to_string()),
         },
         Service {
             id: "default-discord".to_string(),
@@ -192,6 +198,7 @@ fn default_services() -> Vec<Service> {
             icon: "🎮".to_string(),
             user_agent: None,
             zoom: None,
+            group: Some("Personnel".to_string()),
         },
         Service {
             id: "default-slack".to_string(),
@@ -200,6 +207,7 @@ fn default_services() -> Vec<Service> {
             icon: "💼".to_string(),
             user_agent: None,
             zoom: None,
+            group: Some("Travail".to_string()),
         },
     ]
 }
@@ -224,6 +232,11 @@ fn normalize_service(mut service: Service) -> Service {
     if let Some(z) = service.zoom {
         if !z.is_finite() || (z - 1.0).abs() < f64::EPSILON {
             service.zoom = None;
+        }
+    }
+    if let Some(g) = service.group.as_deref() {
+        if g.trim().is_empty() {
+            service.group = None;
         }
     }
     service

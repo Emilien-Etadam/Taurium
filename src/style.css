@@ -1,7 +1,10 @@
 :root {
   --icon-size: 40px;
+  --sidebar-width: 48px;
   --sidebar-color: #16213e;
   --accent-color: #e94560;
+  --text: rgba(255, 255, 255, 0.92);
+  --text-dim: rgba(255, 255, 255, 0.5);
 }
 
 * {
@@ -21,48 +24,47 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 48px;
+  width: var(--sidebar-width);
   height: 100vh;
   background: var(--sidebar-color);
   display: flex;
   flex-direction: column;
-  align-items: center;
   padding-top: 8px;
-  gap: 4px;
   z-index: 100;
+  overflow: hidden;
 }
 
 .service-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   width: 100%;
+  padding: 0 4px;
+}
+.service-list::-webkit-scrollbar {
+  width: 0;
 }
 
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding-bottom: 8px;
-  gap: 4px;
+  padding: 4px;
+  gap: 2px;
 }
 
+/* Service / settings icon rows */
 .service-icon,
 .settings-icon {
-  width: var(--icon-size);
-  height: var(--icon-size);
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: calc(var(--icon-size) * 0.5);
+  justify-content: flex-start;
+  height: var(--icon-size);
   cursor: pointer;
   border-radius: 8px;
-  border-left: 3px solid transparent;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
   user-select: none;
   position: relative;
   flex-shrink: 0;
@@ -70,7 +72,7 @@ body {
 
 .service-icon:hover,
 .settings-icon:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .service-icon:focus-visible,
@@ -79,17 +81,31 @@ body {
   outline-offset: -2px;
 }
 
-.service-icon.active {
-  border-left-color: var(--accent-color);
-  background: rgba(233, 69, 96, 0.15);
-}
-
+/* Active state: inset bar (no layout impact, nothing shifts) */
+.service-icon.active,
 .settings-icon.active {
-  border-left-color: var(--accent-color);
   background: rgba(233, 69, 96, 0.15);
+  box-shadow: inset 3px 0 0 var(--accent-color);
 }
 
-/* Image icons inside service-icon */
+/* Glyph + its overlays stay together so dot/badge are always anchored */
+.glyph-wrap {
+  position: relative;
+  width: var(--icon-size);
+  min-width: var(--icon-size);
+  height: var(--icon-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.glyph {
+  font-size: calc(var(--icon-size) * 0.5);
+  line-height: 1;
+}
+
+/* Image icons inside a service-icon */
 .icon-img {
   width: calc(var(--icon-size) * 0.6);
   height: calc(var(--icon-size) * 0.6);
@@ -98,30 +114,93 @@ body {
   pointer-events: none;
 }
 
-.separator {
-  width: 28px;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 4px 0;
+/* Text label (hidden while the sidebar is compact) */
+.label {
+  font-size: 13px;
+  white-space: nowrap;
+  margin-left: 10px;
+  color: var(--text);
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.15s;
 }
 
-/* Badge */
+/* Status dot: bottom-right of the glyph */
+.status-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--sidebar-color);
+  box-sizing: content-box;
+}
+.status-dot.loaded {
+  background: #2ecc71;
+}
+.status-dot.loading {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: var(--accent-color);
+  animation: spin 0.7s linear infinite;
+}
+.status-dot.idle {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Notification badge: top-right of the glyph */
 .badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: -2px;
+  right: -2px;
   background: var(--accent-color);
   color: #fff;
   font-size: 9px;
   font-weight: 700;
-  min-width: 14px;
-  height: 14px;
-  border-radius: 7px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 3px;
+  padding: 0 4px;
   line-height: 1;
+  border: 2px solid var(--sidebar-color);
+  box-sizing: border-box;
+}
+
+/* Group header: fixed height so icons never shift.
+   Compact = thin line; expanded (phase 2) = label text. */
+.group-header {
+  position: relative;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+}
+.group-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: opacity 0.15s;
+}
+.group-text {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.settings-icon .glyph {
+  color: var(--text-dim);
 }
 
 /* Empty state */
@@ -133,16 +212,13 @@ body {
   flex: 1;
   gap: 4px;
 }
-
 .empty-state.hidden {
   display: none;
 }
-
 .empty-icon {
   font-size: 20px;
   color: rgba(255, 255, 255, 0.2);
 }
-
 .empty-text {
   font-size: 9px;
   color: rgba(255, 255, 255, 0.2);
@@ -153,7 +229,7 @@ body {
 .loading-overlay {
   position: fixed;
   top: 0;
-  left: 48px;
+  left: var(--sidebar-width);
   right: 0;
   bottom: 0;
   background: rgba(26, 26, 46, 0.7);
@@ -162,11 +238,9 @@ body {
   justify-content: center;
   z-index: 50;
 }
-
 .loading-overlay.hidden {
   display: none;
 }
-
 .spinner {
   width: 32px;
   height: 32px;
@@ -177,5 +251,7 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

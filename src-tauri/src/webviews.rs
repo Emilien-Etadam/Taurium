@@ -756,6 +756,7 @@ mod tests {
             icon: "icon.png".to_string(),
             user_agent: None,
             zoom: None,
+            group: None,
         }
     }
 
@@ -1021,6 +1022,7 @@ mod tests {
             icon: "x".to_string(),
             user_agent: None,
             zoom: None,
+            group: None,
         };
         let with_ua = Service {
             user_agent: Some("Custom".to_string()),
