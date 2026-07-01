@@ -1,4 +1,5 @@
 let services = [];
+let recipes = [];
 let editingIndex = -1;
 let deleteIndex = -1;
 let dragSrcIndex = -1;
@@ -30,6 +31,7 @@ async function init() {
 
   try {
     services = await invoke("get_services");
+    recipes = await invoke("get_recipes");
     renderServices();
 
     // Load preferences
@@ -44,6 +46,9 @@ async function init() {
   }
 
   document.getElementById("add-btn").addEventListener("click", showAddForm);
+  document.getElementById("catalog-btn").addEventListener("click", showCatalog);
+  document.getElementById("catalog-close").addEventListener("click", hideCatalog);
+  document.getElementById("catalog-search").addEventListener("input", renderCatalogList);
   document.getElementById("save-btn").addEventListener("click", saveForm);
   document.getElementById("cancel-btn").addEventListener("click", hideForm);
   document.getElementById("confirm-yes").addEventListener("click", confirmDelete);
@@ -370,6 +375,77 @@ async function persistServices() {
   } catch (err) {
     alert("Error saving: " + err);
   }
+}
+
+// --- Catalog ---
+function serviceUrls() {
+  return new Set(services.map((s) => s.url));
+}
+
+function showCatalog() {
+  document.getElementById("catalog-search").value = "";
+  renderCatalogList();
+  document.getElementById("catalog-dialog").classList.remove("hidden");
+}
+
+function hideCatalog() {
+  document.getElementById("catalog-dialog").classList.add("hidden");
+}
+
+function renderCatalogList() {
+  const list = document.getElementById("catalog-list");
+  const query = document.getElementById("catalog-search").value.trim().toLowerCase();
+  const existingUrls = serviceUrls();
+  list.innerHTML = "";
+
+  const filtered = recipes.filter((recipe) => {
+    if (!query) return true;
+    return (
+      recipe.name.toLowerCase().includes(query) ||
+      recipe.url.toLowerCase().includes(query) ||
+      recipe.id.toLowerCase().includes(query)
+    );
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<p class="catalog-empty">Aucun service trouvé.</p>';
+    return;
+  }
+
+  filtered.forEach((recipe) => {
+    const alreadyAdded = existingUrls.has(recipe.url);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "catalog-item" + (alreadyAdded ? " catalog-item-added" : "");
+    item.disabled = alreadyAdded;
+    item.innerHTML = `
+      <span class="icon">${escapeHtml(recipe.icon)}</span>
+      <div class="info">
+        <div class="name">${escapeHtml(recipe.name)}</div>
+        <div class="url">${escapeHtml(recipe.url)}</div>
+      </div>
+      ${alreadyAdded ? '<span class="catalog-badge">Ajouté</span>' : ""}
+    `;
+    if (!alreadyAdded) {
+      item.addEventListener("click", () => addFromCatalog(recipe));
+    }
+    list.appendChild(item);
+  });
+}
+
+async function addFromCatalog(recipe) {
+  const service = {
+    id: nanoid(10),
+    name: recipe.name,
+    url: recipe.url,
+    icon: recipe.icon,
+    user_agent: recipe.user_agent ?? null,
+    zoom: null,
+  };
+  services.push(service);
+  hideCatalog();
+  renderServices();
+  await persistServices();
 }
 
 // --- Preferences ---
