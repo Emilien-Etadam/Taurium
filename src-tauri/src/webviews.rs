@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Instant;
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
@@ -100,12 +101,27 @@ pub struct WebviewState {
     pub services_load_info: ServicesLoadInfo,
 }
 
+fn is_meaningful_page_url(url: &str) -> bool {
+    !url.is_empty() && url != "about:blank"
+}
+
+/// Notify the sidebar that a service webview has finished loading.
+fn notify_service_loaded(app: &AppHandle, service_id: &str) {
+    if let Some(sidebar) = app.get_webview("sidebar") {
+        let id_json = serde_json::to_string(service_id).unwrap_or_default();
+        let js = format!("window.__serviceLoaded && window.__serviceLoaded({id_json})");
+        sidebar.eval(&js).ok();
+    }
+}
+
 /// Handle document title change: update badge count, send notification, refresh sidebar
 pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str, title: &str) {
     // Skip blank/empty pages (avoid unnecessary work during webview creation)
     if title.is_empty() || title == "about:blank" {
         return;
     }
+
+    notify_service_loaded(app, service_id);
 
     let count = extract_badge_count(title);
     eprintln!(
@@ -223,17 +239,25 @@ fn create_service_webview_inner(
 ) -> Result<(), TauriumError> {
     let url = WebviewUrl::External("about:blank".parse().unwrap());
     let app_clone = app.clone();
+    let app_for_load = app.clone();
     let sid = service.id.clone();
+    let sid_for_load = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
     let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
-    let builder = tauri::webview::WebviewBuilder::new(&service.id, url).on_document_title_changed(
-        move |_wv, title| {
+    let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
+        .on_page_load(move |_wv, payload| {
+            if payload.event() == PageLoadEvent::Finished
+                && is_meaningful_page_url(payload.url().as_str())
+            {
+                notify_service_loaded(&app_for_load, &sid_for_load);
+            }
+        })
+        .on_document_title_changed(move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
-        },
-    );
+        });
     let builder = if let Some(ref ua) = service.user_agent {
         builder.user_agent(ua)
     } else {
@@ -388,12 +412,23 @@ pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), 
         .get_webview(id)
         .ok_or_else(|| TauriumError::WebviewNotFound(id.to_string()))?;
 
+    let was_already_navigated = state
+        .navigated
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .contains(id);
+
     // Lazy load: navigate to real URL on first click
     ensure_navigated(app, state, id);
 
     apply_zoom_from_state(app, state, id);
 
     webview.show()?;
+
+    // Already-loaded tabs do not emit page-load/title events on re-show.
+    if was_already_navigated {
+        notify_service_loaded(app, id);
+    }
 
     *state
         .active_id
@@ -612,10 +647,17 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        compute_service_changes, notification_body_for_badge_change, select_webviews_to_hibernate,
-        window_location_replace_js,
+        compute_service_changes, is_meaningful_page_url, notification_body_for_badge_change,
+        select_webviews_to_hibernate, window_location_replace_js,
     };
     use crate::config::Service;
+
+    #[test]
+    fn test_is_meaningful_page_url() {
+        assert!(!is_meaningful_page_url(""));
+        assert!(!is_meaningful_page_url("about:blank"));
+        assert!(is_meaningful_page_url("https://example.com"));
+    }
 
     fn sample_service(id: &str) -> Service {
         Service {
