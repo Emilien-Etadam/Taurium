@@ -3,6 +3,11 @@ let settingsOpen = false;
 let services = [];
 let pendingServiceId = null;
 let overlayHideTimer = null;
+let sidebarExpanded = false;
+let filterQuery = "";
+
+// Per-service load state for the status dot: "idle" | "loading" | "loaded"
+const serviceStates = {};
 
 const OVERLAY_FALLBACK_MS = 10000;
 
@@ -10,6 +15,31 @@ import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+}
+
+function makeGlyphWrap(service) {
+  const wrap = document.createElement("span");
+  wrap.className = "glyph-wrap";
+
+  // Support both emoji and image icons
+  if (service.icon.startsWith("data:image")) {
+    const img = document.createElement("img");
+    img.src = service.icon;
+    img.className = "icon-img";
+    img.alt = "";
+    wrap.appendChild(img);
+  } else {
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    glyph.textContent = service.icon;
+    wrap.appendChild(glyph);
+  }
+
+  const dot = document.createElement("span");
+  dot.className = "status-dot " + (serviceStates[service.id] || "idle");
+  wrap.appendChild(dot);
+
+  return wrap;
 }
 
 function renderSidebar(services) {
@@ -24,7 +54,29 @@ function renderSidebar(services) {
     emptyState.classList.add("hidden");
   }
 
+  let lastGroup = null;
+  let renderedCount = 0;
   services.forEach((service, index) => {
+    // Skip services that don't match the active quick-switcher query
+    if (!matchesFilter(service)) return;
+    renderedCount++;
+
+    // Emit a group header whenever the group changes (order is preserved as stored)
+    const group = service.group || null;
+    if (group && group !== lastGroup) {
+      const header = document.createElement("div");
+      header.className = "group-header";
+      const line = document.createElement("span");
+      line.className = "group-line";
+      const text = document.createElement("span");
+      text.className = "group-text";
+      text.textContent = group;
+      header.appendChild(line);
+      header.appendChild(text);
+      serviceList.appendChild(header);
+    }
+    lastGroup = group;
+
     const btn = document.createElement("div");
     btn.className = "service-icon";
     btn.dataset.id = service.id;
@@ -34,16 +86,12 @@ function renderSidebar(services) {
     btn.setAttribute("tabindex", "0");
     btn.setAttribute("aria-label", service.name);
 
-    // Support both emoji and image icons
-    if (service.icon.startsWith("data:image")) {
-      const img = document.createElement("img");
-      img.src = service.icon;
-      img.className = "icon-img";
-      img.alt = "";
-      btn.appendChild(img);
-    } else {
-      btn.textContent = service.icon;
-    }
+    btn.appendChild(makeGlyphWrap(service));
+
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = service.name;
+    btn.appendChild(label);
 
     btn.addEventListener("click", () => switchService(service.id));
     btn.addEventListener("keydown", (e) => {
@@ -63,7 +111,46 @@ function renderSidebar(services) {
     serviceList.appendChild(btn);
   });
 
+  // Show a hint when the query filters everything out
+  if (filterQuery && renderedCount === 0 && services.length > 0) {
+    const noMatch = document.createElement("div");
+    noMatch.className = "no-match";
+    noMatch.textContent = "Aucun service";
+    serviceList.appendChild(noMatch);
+  }
+
   updateActiveState();
+}
+
+// Quick-switcher match: name or group contains the query (case-insensitive)
+function matchesFilter(service) {
+  if (!filterQuery) return true;
+  const hay = (service.name + " " + (service.group || "")).toLowerCase();
+  return hay.includes(filterQuery);
+}
+
+// First service currently matching the query (for Enter-to-switch)
+function firstFilterMatch() {
+  return services.find((s) => matchesFilter(s)) || null;
+}
+
+function clearFilter() {
+  filterQuery = "";
+  const input = document.getElementById("sidebar-search");
+  if (input) input.value = "";
+  renderSidebar(services);
+}
+
+// Ctrl+K: expand the sidebar (if needed) and focus the quick switcher
+async function openQuickSwitcher() {
+  if (!sidebarExpanded) {
+    await setSidebarExpanded(true);
+  }
+  const input = document.getElementById("sidebar-search");
+  if (input) {
+    input.focus();
+    input.select();
+  }
 }
 
 async function init() {
@@ -81,6 +168,45 @@ async function init() {
     // Load preferences and apply theme
     const prefs = await invoke("get_preferences");
     applyPreferences(prefs);
+
+    // Restore pinned sidebar state (repositions native webviews if expanded)
+    if (prefs.sidebar_expanded) {
+      await setSidebarExpanded(true);
+    }
+
+    // Expand / collapse toggle (click + keyboard)
+    const toggleBtn = document.getElementById("sidebar-toggle");
+    toggleBtn.addEventListener("click", () => setSidebarExpanded(!sidebarExpanded));
+    toggleBtn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setSidebarExpanded(!sidebarExpanded);
+      }
+    });
+
+    // Quick-switcher search field
+    const searchInput = document.getElementById("sidebar-search");
+    searchInput.addEventListener("input", () => {
+      filterQuery = searchInput.value.trim().toLowerCase();
+      renderSidebar(services);
+    });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const match = firstFilterMatch();
+        if (match) {
+          searchInput.blur();
+          switchService(match.id);
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        if (filterQuery) {
+          clearFilter();
+        } else {
+          searchInput.blur();
+        }
+      }
+    });
 
     services = await invoke("get_services");
     renderSidebar(services);
@@ -126,6 +252,36 @@ window.__applyPreferences = function(prefs) {
   applyPreferences(prefs);
 };
 
+// Expand / collapse the sidebar. The Rust side reflows the native service
+// webviews to start after the sidebar and persists the pinned state.
+async function setSidebarExpanded(expanded) {
+  const invoke = getInvoke();
+  if (!invoke) return;
+
+  sidebarExpanded = expanded;
+  document.getElementById("sidebar").classList.toggle("expanded", expanded);
+  const toggle = document.getElementById("sidebar-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", String(expanded));
+
+  try {
+    await invoke("set_sidebar_expanded", { expanded });
+  } catch (err) {
+    showToast("Could not resize sidebar: " + formatInvokeError(err));
+    console.error("Sidebar resize error:", err);
+  }
+}
+
+// Update the status dot of a single service without rebuilding the sidebar
+function setServiceState(id, state) {
+  serviceStates[id] = state;
+  document.querySelectorAll(".service-icon").forEach((btn) => {
+    if (btn.dataset.id === id) {
+      const dot = btn.querySelector(".status-dot");
+      if (dot) dot.className = "status-dot " + state;
+    }
+  });
+}
+
 function showLoadingOverlay() {
   const overlay = document.getElementById("loading-overlay");
   if (!overlay) return;
@@ -152,8 +308,11 @@ function hideLoadingOverlay() {
   pendingServiceId = null;
 }
 
-// Called from Rust when the service webview has finished loading
+// Called from Rust when a service webview reports a real document title (loaded)
 window.__serviceLoaded = function(id) {
+  // Any service that reports a title is considered loaded (incl. background ones)
+  setServiceState(id, "loaded");
+
   if (id === pendingServiceId) {
     hideLoadingOverlay();
   }
@@ -165,14 +324,24 @@ async function switchService(id) {
 
   pendingServiceId = id;
   showLoadingOverlay();
+  if (serviceStates[id] !== "loaded") {
+    setServiceState(id, "loading");
+  }
 
   try {
     await invoke("switch_service", { id });
     activeId = id;
     settingsOpen = false;
+    // Clear any active quick-switcher filter so the full list returns
+    if (filterQuery) {
+      clearFilter();
+    }
     updateActiveState();
     overlayHideTimer = setTimeout(hideLoadingOverlay, OVERLAY_FALLBACK_MS);
   } catch (err) {
+    if (serviceStates[id] !== "loaded") {
+      setServiceState(id, "idle");
+    }
     showToast("Could not switch service: " + formatInvokeError(err));
     console.error("Switch error:", err);
     hideLoadingOverlay();
@@ -211,6 +380,20 @@ function handleKeyboard(e) {
     return;
   }
 
+  // Ctrl+B = toggle sidebar expand/collapse
+  if (e.key === "b" || e.key === "B") {
+    e.preventDefault();
+    setSidebarExpanded(!sidebarExpanded);
+    return;
+  }
+
+  // Ctrl+K = open quick switcher (expand + focus search)
+  if (e.key === "k" || e.key === "K") {
+    e.preventDefault();
+    openQuickSwitcher();
+    return;
+  }
+
   // Ctrl+1-9 = switch service
   const num = parseInt(e.key);
   if (num >= 1 && num <= 9 && num <= services.length) {
@@ -241,8 +424,11 @@ window.__reloadSidebar = async function() {
 window.__updateBadges = function(badges) {
   document.querySelectorAll(".service-icon").forEach((btn) => {
     const id = btn.dataset.id;
+    const wrap = btn.querySelector(".glyph-wrap");
+    if (!wrap) return;
+
     // Remove existing badge
-    const existing = btn.querySelector(".badge");
+    const existing = wrap.querySelector(".badge");
     if (existing) existing.remove();
 
     const count = badges[id];
@@ -250,7 +436,7 @@ window.__updateBadges = function(badges) {
       const badge = document.createElement("span");
       badge.className = "badge";
       badge.textContent = count > 99 ? "99+" : count;
-      btn.appendChild(badge);
+      wrap.appendChild(badge);
     }
   });
 };

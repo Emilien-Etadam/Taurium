@@ -9,6 +9,16 @@
 </head>
 <body>
   <aside id="sidebar">
+    <div class="sidebar-toggle" id="sidebar-toggle" role="button" tabindex="0" aria-label="Développer / réduire la barre latérale" aria-expanded="false" title="Développer / réduire">
+      <span class="glyph-wrap"><span class="glyph toggle-chevron">&raquo;</span></span>
+      <span class="label">Réduire</span>
+    </div>
+
+    <!-- Quick switcher (visible when expanded, focus with Ctrl+K) -->
+    <div class="sidebar-search" id="sidebar-search-wrap">
+      <input type="search" id="sidebar-search" placeholder="Rechercher… (Ctrl+K)" autocomplete="off" aria-label="Rechercher un service" />
+    </div>
+
     <div class="service-list" id="service-list"></div>
 
     <!-- Empty state -->
@@ -18,8 +28,10 @@
     </div>
 
     <div class="sidebar-bottom">
-      <div class="separator"></div>
-      <div class="settings-icon" id="settings-btn" role="button" tabindex="0" aria-label="Settings" title="Settings (Ctrl+,)">&#9881;</div>
+      <div class="settings-icon" id="settings-btn" role="button" tabindex="0" aria-label="Settings" title="Settings (Ctrl+,)">
+        <span class="glyph-wrap"><span class="glyph">&#9881;</span></span>
+        <span class="label">Settings</span>
+      </div>
     </div>
   </aside>
 

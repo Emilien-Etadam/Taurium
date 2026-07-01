@@ -32,6 +32,12 @@
         <span id="err-url" class="field-error hidden"></span>
       </label>
       <label>
+        Groupe (optionnel)
+        <input type="text" id="input-group" placeholder="Personnel, Travail…" autocomplete="off" list="group-suggestions" />
+        <datalist id="group-suggestions"></datalist>
+        <p class="hint field-hint">Regroupe les services dans la barre latérale.</p>
+      </label>
+      <label>
         User Agent (optional)
         <input type="text" id="input-user-agent" placeholder="Leave empty for default" autocomplete="off" />
         <p class="hint field-hint">Applied immediately when you save (the service webview is recreated).</p>

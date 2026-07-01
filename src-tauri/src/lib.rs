@@ -201,6 +201,28 @@ fn save_preferences_cmd(
     Ok(prefs_json)
 }
 
+#[tauri::command]
+fn set_sidebar_expanded(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+    expanded: bool,
+) -> Result<(), TauriumError> {
+    let width = if expanded {
+        webviews::SIDEBAR_EXPANDED_WIDTH
+    } else {
+        webviews::SIDEBAR_WIDTH
+    };
+    webviews::apply_sidebar_width(&app, &state, width);
+
+    // Persist the pinned state so it survives restarts.
+    let mut prefs = config::load_preferences(&state.app_data_dir);
+    prefs.sidebar_expanded = expanded;
+    if let Err(err) = config::save_preferences(&state.app_data_dir, &prefs) {
+        eprintln!("[Taurium] Failed to persist sidebar_expanded: {err}");
+    }
+    Ok(())
+}
+
 // Holds the service ID targeted by the context menu
 pub struct ContextMenuTarget(std::sync::Mutex<Option<String>>);
 
@@ -285,6 +307,7 @@ pub fn run() {
                 navigated: std::sync::Mutex::new(HashSet::new()),
                 last_activity: std::sync::Mutex::new(HashMap::new()),
                 badge_counts: std::sync::Mutex::new(HashMap::new()),
+                sidebar_width: std::sync::Mutex::new(webviews::SIDEBAR_WIDTH),
                 services_load_info,
             };
             app.manage(webview_state);
@@ -432,6 +455,7 @@ pub fn run() {
             show_service_context_menu,
             get_preferences,
             save_preferences_cmd,
+            set_sidebar_expanded,
             apply_services,
             get_services_load_info,
         ])
