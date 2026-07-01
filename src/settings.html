@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Settings - Taurium</title>
   <link rel="stylesheet" href="settings.css" />
+  <link rel="stylesheet" href="toast.css" />
 </head>
 <body>
   <div class="container">
@@ -13,7 +14,10 @@
 
     <div id="service-list"></div>
 
-    <button id="add-btn" class="btn btn-add">+ Add Service</button>
+    <div class="add-actions">
+      <button id="add-btn" class="btn btn-add">+ Add Service</button>
+      <button id="catalog-btn" class="btn btn-catalog">Ajouter depuis le catalogue</button>
+    </div>
 
     <div id="edit-form" class="form hidden">
       <h2 id="form-title">Add Service</h2>
@@ -41,11 +45,12 @@
         Icon
         <div class="icon-input-row">
           <input type="text" id="input-icon" placeholder="&#128231; or use image" />
-          <label class="btn btn-file" title="Import PNG image">
+          <label class="btn btn-file" title="Import image">
             &#128247;
             <input type="file" id="input-icon-file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden />
           </label>
         </div>
+        <span id="err-icon" class="field-error hidden"></span>
         <div id="icon-preview" class="icon-preview hidden">
           <img id="icon-preview-img" />
           <button id="icon-preview-clear" class="btn-icon delete" title="Remove">&times;</button>
@@ -54,6 +59,18 @@
       <div class="form-actions">
         <button id="save-btn" class="btn btn-save">Save</button>
         <button id="cancel-btn" class="btn btn-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Catalog dialog -->
+    <div id="catalog-dialog" class="confirm-dialog hidden">
+      <div class="catalog-box">
+        <div class="catalog-header">
+          <h2>Catalogue de services</h2>
+          <button id="catalog-close" class="btn-icon delete" title="Fermer">&times;</button>
+        </div>
+        <input type="search" id="catalog-search" class="catalog-search" placeholder="Rechercher…" autocomplete="off" />
+        <div id="catalog-list" class="catalog-list"></div>
       </div>
     </div>
 

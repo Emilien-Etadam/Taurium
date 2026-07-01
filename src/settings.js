@@ -1,9 +1,12 @@
 let services = [];
+let recipes = [];
 let editingIndex = -1;
 let deleteIndex = -1;
 let dragSrcIndex = -1;
 let iconDataUrl = ""; // stores base64 data URL for image icon
 let savePrefsFeedbackTimer = null;
+
+import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 
 function nanoid(size = 10) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
@@ -15,6 +18,15 @@ function nanoid(size = 10) {
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+}
+
+// An icon is either an emoji or an imported image (data:image...).
+// This rejects arbitrary text/HTML typed into the icon field.
+function isEmojiIcon(s) {
+  if (!s) return false;
+  if ([...s].length > 8) return false; // one emoji + modifiers stays short
+  if (/[<>A-Za-z0-9]/.test(s)) return false; // no HTML/ASCII text
+  return /\p{Extended_Pictographic}/u.test(s);
 }
 
 async function init() {
@@ -30,7 +42,11 @@ async function init() {
 
   try {
     services = await invoke("get_services");
+    recipes = await invoke("get_recipes");
     renderServices();
+
+    const loadInfo = await invoke("get_services_load_info");
+    showServicesLoadInfo(loadInfo);
 
     // Load preferences
     const prefs = await invoke("get_preferences");
@@ -40,10 +56,14 @@ async function init() {
     document.getElementById("pref-accent-color").value = prefs.accent_color;
     document.getElementById("pref-notifications").checked = prefs.notifications_enabled;
   } catch (err) {
-    document.body.innerHTML = "<pre style='color:red;padding:20px'>Error: " + err + "</pre>";
+    showToast("Could not load settings: " + formatInvokeError(err), { durationMs: 10000 });
+    console.error("Settings init error:", err);
   }
 
   document.getElementById("add-btn").addEventListener("click", showAddForm);
+  document.getElementById("catalog-btn").addEventListener("click", showCatalog);
+  document.getElementById("catalog-close").addEventListener("click", hideCatalog);
+  document.getElementById("catalog-search").addEventListener("input", renderCatalogList);
   document.getElementById("save-btn").addEventListener("click", saveForm);
   document.getElementById("cancel-btn").addEventListener("click", hideForm);
   document.getElementById("confirm-yes").addEventListener("click", confirmDelete);
@@ -76,17 +96,9 @@ function renderServices() {
     item.draggable = true;
     item.dataset.index = index;
 
-    // Render icon (emoji or image)
-    let iconHtml;
-    if (service.icon.startsWith("data:image")) {
-      iconHtml = `<img src="${service.icon}" />`;
-    } else {
-      iconHtml = service.icon;
-    }
-
     item.innerHTML = `
       <span class="drag-handle" title="Drag to reorder">&#9776;</span>
-      <span class="icon">${iconHtml}</span>
+      <span class="icon"></span>
       <div class="info">
         <div class="name">${escapeHtml(service.name)}</div>
         <div class="url">${escapeHtml(service.url)}</div>
@@ -96,6 +108,17 @@ function renderServices() {
         <button class="btn-icon delete" title="Delete">&#10005;</button>
       </div>
     `;
+
+    // Render icon safely: image via <img src>, otherwise emoji as text.
+    // Never inject the icon through innerHTML (avoids HTML injection).
+    const iconSpan = item.querySelector(".icon");
+    if (service.icon.startsWith("data:image")) {
+      const img = document.createElement("img");
+      img.src = service.icon;
+      iconSpan.appendChild(img);
+    } else {
+      iconSpan.textContent = service.icon;
+    }
     item.querySelector(".edit").addEventListener("click", (e) => {
       e.stopPropagation();
       showEditForm(index);
@@ -315,17 +338,27 @@ async function saveForm() {
     valid = false;
   }
 
-  // Validate URL
+  // Validate URL (http/https only)
   if (!url) {
     showError("input-url", "URL is required");
     valid = false;
   } else {
+    let parsed = null;
     try {
-      new URL(url);
+      parsed = new URL(url);
     } catch {
-      showError("input-url", "Invalid URL (must start with https://)");
+      parsed = null;
+    }
+    if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+      showError("input-url", "URL must start with http:// or https://");
       valid = false;
     }
+  }
+
+  // Validate icon: emoji only (images go through the file picker)
+  if (!iconDataUrl && emojiIcon && !isEmojiIcon(emojiIcon)) {
+    showError("input-icon", "Icon must be a single emoji (or import an image)");
+    valid = false;
   }
 
   if (!valid) return;
@@ -366,10 +399,85 @@ async function persistServices() {
   if (!invoke) return;
   try {
     await invoke("save_services_cmd", { services });
-    await invoke("apply_services");
+    const applyResult = await invoke("apply_services");
+    if (applyResult && applyResult.filtered_url_count > 0) {
+      showServicesLoadInfo(applyResult);
+    }
   } catch (err) {
-    alert("Error saving: " + err);
+    showToast("Could not save services: " + formatInvokeError(err));
+    console.error("Save services error:", err);
   }
+}
+
+// --- Catalog ---
+function serviceUrls() {
+  return new Set(services.map((s) => s.url));
+}
+
+function showCatalog() {
+  document.getElementById("catalog-search").value = "";
+  renderCatalogList();
+  document.getElementById("catalog-dialog").classList.remove("hidden");
+}
+
+function hideCatalog() {
+  document.getElementById("catalog-dialog").classList.add("hidden");
+}
+
+function renderCatalogList() {
+  const list = document.getElementById("catalog-list");
+  const query = document.getElementById("catalog-search").value.trim().toLowerCase();
+  const existingUrls = serviceUrls();
+  list.innerHTML = "";
+
+  const filtered = recipes.filter((recipe) => {
+    if (!query) return true;
+    return (
+      recipe.name.toLowerCase().includes(query) ||
+      recipe.url.toLowerCase().includes(query) ||
+      recipe.id.toLowerCase().includes(query)
+    );
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<p class="catalog-empty">Aucun service trouvé.</p>';
+    return;
+  }
+
+  filtered.forEach((recipe) => {
+    const alreadyAdded = existingUrls.has(recipe.url);
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "catalog-item" + (alreadyAdded ? " catalog-item-added" : "");
+    item.disabled = alreadyAdded;
+    item.innerHTML = `
+      <span class="icon">${escapeHtml(recipe.icon)}</span>
+      <div class="info">
+        <div class="name">${escapeHtml(recipe.name)}</div>
+        <div class="url">${escapeHtml(recipe.url)}</div>
+      </div>
+      ${alreadyAdded ? '<span class="catalog-badge">Ajouté</span>' : ""}
+    `;
+    if (!alreadyAdded) {
+      item.addEventListener("click", () => addFromCatalog(recipe));
+    }
+    list.appendChild(item);
+  });
+}
+
+async function addFromCatalog(recipe) {
+  const service = {
+    id: nanoid(10),
+    name: recipe.name,
+    url: recipe.url,
+    icon: recipe.icon,
+    user_agent: recipe.user_agent ?? null,
+    zoom: null,
+  };
+  services.push(service);
+  hideCatalog();
+  renderServices();
+  await persistServices();
 }
 
 // --- Preferences ---
@@ -399,7 +507,8 @@ async function savePreferences() {
       savePrefsFeedbackTimer = null;
     }, 1000);
   } catch (err) {
-    alert("Error saving preferences: " + err);
+    showToast("Could not save preferences: " + formatInvokeError(err));
+    console.error("Save preferences error:", err);
     savePrefsBtn.textContent = "Save Settings";
     savePrefsBtn.disabled = false;
   }

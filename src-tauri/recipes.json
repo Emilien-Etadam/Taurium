@@ -1,0 +1,99 @@
+[
+  {
+    "id": "telegram",
+    "name": "Telegram",
+    "url": "https://web.telegram.org",
+    "icon": "✈️"
+  },
+  {
+    "id": "microsoft-teams",
+    "name": "Microsoft Teams",
+    "url": "https://teams.microsoft.com",
+    "icon": "👥"
+  },
+  {
+    "id": "outlook",
+    "name": "Outlook",
+    "url": "https://outlook.live.com",
+    "icon": "📬"
+  },
+  {
+    "id": "messenger",
+    "name": "Messenger",
+    "url": "https://www.messenger.com",
+    "icon": "💬"
+  },
+  {
+    "id": "twitter",
+    "name": "X (Twitter)",
+    "url": "https://x.com",
+    "icon": "🐦"
+  },
+  {
+    "id": "linkedin",
+    "name": "LinkedIn",
+    "url": "https://www.linkedin.com",
+    "icon": "💼"
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "url": "https://github.com",
+    "icon": "🐙"
+  },
+  {
+    "id": "notion",
+    "name": "Notion",
+    "url": "https://www.notion.so",
+    "icon": "📝"
+  },
+  {
+    "id": "google-calendar",
+    "name": "Google Calendar",
+    "url": "https://calendar.google.com",
+    "icon": "📅"
+  },
+  {
+    "id": "google-drive",
+    "name": "Google Drive",
+    "url": "https://drive.google.com",
+    "icon": "📁"
+  },
+  {
+    "id": "trello",
+    "name": "Trello",
+    "url": "https://trello.com",
+    "icon": "📋"
+  },
+  {
+    "id": "spotify",
+    "name": "Spotify",
+    "url": "https://open.spotify.com",
+    "icon": "🎵"
+  },
+  {
+    "id": "reddit",
+    "name": "Reddit",
+    "url": "https://www.reddit.com",
+    "icon": "🔴"
+  },
+  {
+    "id": "mastodon",
+    "name": "Mastodon",
+    "url": "https://mastodon.social",
+    "icon": "🐘"
+  },
+  {
+    "id": "element",
+    "name": "Element",
+    "url": "https://app.element.io",
+    "icon": "🔷"
+  },
+  {
+    "id": "signal",
+    "name": "Signal",
+    "url": "https://signal.org",
+    "icon": "🔒",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  }
+]
