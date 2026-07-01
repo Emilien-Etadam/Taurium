@@ -5,6 +5,7 @@ let pendingServiceId = null;
 let overlayHideTimer = null;
 let sidebarExpanded = false;
 let filterQuery = "";
+let iconSize = 40;
 
 // Per-service load state for the status dot: "idle" | "loading" | "loaded"
 const serviceStates = {};
@@ -242,9 +243,37 @@ async function init() {
 
 function applyPreferences(prefs) {
   const root = document.documentElement;
+  iconSize = prefs.icon_size;
   root.style.setProperty("--icon-size", prefs.icon_size + "px");
   root.style.setProperty("--sidebar-color", prefs.sidebar_color);
   root.style.setProperty("--accent-color", prefs.accent_color);
+  // Sidebar width must track icon size so large icons don't overflow/overlap.
+  syncSidebarWidth();
+}
+
+// Compact/expanded sidebar widths derived from the icon size.
+function computeSidebarWidths() {
+  const compact = Math.max(48, iconSize + 16);
+  const expanded = Math.max(210, iconSize + 170);
+  return { compact, expanded };
+}
+
+// Apply the sidebar width to CSS and reflow the native webviews via Rust so
+// the sidebar always fits its icons (both when compact and expanded).
+async function syncSidebarWidth() {
+  const { compact, expanded } = computeSidebarWidths();
+  const root = document.documentElement;
+  root.style.setProperty("--sidebar-width", compact + "px");
+  root.style.setProperty("--sidebar-expanded", expanded + "px");
+
+  const invoke = getInvoke();
+  if (!invoke) return;
+  const width = sidebarExpanded ? expanded : compact;
+  try {
+    await invoke("set_sidebar_width", { width });
+  } catch (err) {
+    console.error("Sidebar width error:", err);
+  }
 }
 
 // Called from settings webview after prefs change (via Rust eval)
@@ -264,7 +293,8 @@ async function setSidebarExpanded(expanded) {
   if (toggle) toggle.setAttribute("aria-expanded", String(expanded));
 
   try {
-    await invoke("set_sidebar_expanded", { expanded });
+    await invoke("set_sidebar_expanded", { expanded }); // persist the pinned state
+    await syncSidebarWidth(); // apply the pixel width + reflow native webviews
   } catch (err) {
     showToast("Could not resize sidebar: " + formatInvokeError(err));
     console.error("Sidebar resize error:", err);

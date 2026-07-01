@@ -207,25 +207,32 @@ fn save_preferences_cmd(
     Ok(prefs_json)
 }
 
+// Persist the pinned sidebar state so it survives restarts. The actual pixel
+// width (which depends on icon size) is applied separately via set_sidebar_width.
 #[tauri::command]
 fn set_sidebar_expanded(
-    app: tauri::AppHandle,
     state: tauri::State<WebviewState>,
     expanded: bool,
 ) -> Result<(), TauriumError> {
-    let width = if expanded {
-        webviews::SIDEBAR_EXPANDED_WIDTH
-    } else {
-        webviews::SIDEBAR_WIDTH
-    };
-    webviews::apply_sidebar_width(&app, &state, width);
-
-    // Persist the pinned state so it survives restarts.
     let mut prefs = config::load_preferences(&state.app_data_dir);
     prefs.sidebar_expanded = expanded;
     if let Err(err) = config::save_preferences(&state.app_data_dir, &prefs) {
         eprintln!("[Taurium] Failed to persist sidebar_expanded: {err}");
     }
+    Ok(())
+}
+
+// Set the sidebar width (in logical px) and reflow the native webviews. The
+// frontend computes this from the icon size and the expanded state, so the
+// sidebar always fits its icons (no overlap at large icon sizes).
+#[tauri::command]
+fn set_sidebar_width(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+    width: f64,
+) -> Result<(), TauriumError> {
+    let clamped = width.clamp(webviews::SIDEBAR_WIDTH, 1000.0);
+    webviews::apply_sidebar_width(&app, &state, clamped);
     Ok(())
 }
 
@@ -462,6 +469,7 @@ pub fn run() {
             get_preferences,
             save_preferences_cmd,
             set_sidebar_expanded,
+            set_sidebar_width,
             apply_services,
             get_services_load_info,
         ])

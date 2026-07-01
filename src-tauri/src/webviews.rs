@@ -10,10 +10,9 @@ use tauri_plugin_notification::NotificationExt;
 use crate::config::{extract_badge_count, load_preferences, Service, ServicesLoadInfo};
 use crate::error::TauriumError;
 
-/// Compact sidebar width (icons only).
+/// Minimum sidebar width / fallback (icons only). The actual width is driven by
+/// the frontend (it depends on icon size and the expanded state).
 pub const SIDEBAR_WIDTH: f64 = 48.0;
-/// Expanded sidebar width (icons + labels + group names).
-pub const SIDEBAR_EXPANDED_WIDTH: f64 = 210.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
 // Notification body templates (English)
