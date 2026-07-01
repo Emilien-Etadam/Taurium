@@ -2,7 +2,7 @@
 name = "taurium"
 version = "0.1.0"
 description = "A minimalist Ferdium-like app with multi-webview support"
-authors = ["you"]
+authors = ["Emilien Etadam <emilien@etadam.com>"]
 edition = "2021"
 
 [lib]
