@@ -1,6 +1,7 @@
 :root {
   --icon-size: 40px;
   --sidebar-width: 48px;
+  --sidebar-expanded: 210px;
   --sidebar-color: #16213e;
   --accent-color: #e94560;
   --text: rgba(255, 255, 255, 0.92);
@@ -29,9 +30,56 @@ body {
   background: var(--sidebar-color);
   display: flex;
   flex-direction: column;
-  padding-top: 8px;
+  padding-top: 6px;
   z-index: 100;
   overflow: hidden;
+}
+
+/* Expanded (pinned) state. The native webview snaps to the same width from
+   Rust, so we snap here too (no width animation) to stay in sync; only the
+   labels/group names fade in. */
+#sidebar.expanded {
+  width: var(--sidebar-expanded);
+}
+#sidebar.expanded .label {
+  opacity: 1;
+  max-width: 140px;
+}
+#sidebar.expanded .group-line {
+  opacity: 0;
+}
+#sidebar.expanded .group-text {
+  opacity: 1;
+}
+
+/* Expand / collapse toggle */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  margin: 0 4px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+.sidebar-toggle .glyph-wrap {
+  height: 30px;
+}
+.toggle-chevron {
+  font-size: 15px;
+  color: var(--text-dim);
+  transition: transform 0.18s ease;
+}
+#sidebar.expanded .toggle-chevron {
+  transform: rotate(180deg);
 }
 
 .service-list {

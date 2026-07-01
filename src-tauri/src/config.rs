@@ -31,6 +31,9 @@ pub struct Preferences {
     pub accent_color: String,
     #[serde(default = "default_notifications_enabled")]
     pub notifications_enabled: bool,
+    /// Whether the sidebar is pinned expanded (labels + group names visible).
+    #[serde(default = "default_sidebar_expanded")]
+    pub sidebar_expanded: bool,
 }
 
 fn default_icon_size() -> u32 {
@@ -45,6 +48,9 @@ fn default_accent_color() -> String {
 fn default_notifications_enabled() -> bool {
     true
 }
+fn default_sidebar_expanded() -> bool {
+    false
+}
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -53,6 +59,7 @@ impl Default for Preferences {
             sidebar_color: default_sidebar_color(),
             accent_color: default_accent_color(),
             notifications_enabled: default_notifications_enabled(),
+            sidebar_expanded: default_sidebar_expanded(),
         }
     }
 }

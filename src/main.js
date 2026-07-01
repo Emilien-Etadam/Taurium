@@ -3,6 +3,7 @@ let settingsOpen = false;
 let services = [];
 let pendingServiceId = null;
 let overlayHideTimer = null;
+let sidebarExpanded = false;
 
 // Per-service load state for the status dot: "idle" | "loading" | "loaded"
 const serviceStates = {};
@@ -123,6 +124,21 @@ async function init() {
     const prefs = await invoke("get_preferences");
     applyPreferences(prefs);
 
+    // Restore pinned sidebar state (repositions native webviews if expanded)
+    if (prefs.sidebar_expanded) {
+      await setSidebarExpanded(true);
+    }
+
+    // Expand / collapse toggle (click + keyboard)
+    const toggleBtn = document.getElementById("sidebar-toggle");
+    toggleBtn.addEventListener("click", () => setSidebarExpanded(!sidebarExpanded));
+    toggleBtn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        setSidebarExpanded(!sidebarExpanded);
+      }
+    });
+
     services = await invoke("get_services");
     renderSidebar(services);
 
@@ -166,6 +182,25 @@ function applyPreferences(prefs) {
 window.__applyPreferences = function(prefs) {
   applyPreferences(prefs);
 };
+
+// Expand / collapse the sidebar. The Rust side reflows the native service
+// webviews to start after the sidebar and persists the pinned state.
+async function setSidebarExpanded(expanded) {
+  const invoke = getInvoke();
+  if (!invoke) return;
+
+  sidebarExpanded = expanded;
+  document.getElementById("sidebar").classList.toggle("expanded", expanded);
+  const toggle = document.getElementById("sidebar-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", String(expanded));
+
+  try {
+    await invoke("set_sidebar_expanded", { expanded });
+  } catch (err) {
+    showToast("Could not resize sidebar: " + formatInvokeError(err));
+    console.error("Sidebar resize error:", err);
+  }
+}
 
 // Update the status dot of a single service without rebuilding the sidebar
 function setServiceState(id, state) {
@@ -269,6 +304,13 @@ function handleKeyboard(e) {
   if (e.key === ",") {
     e.preventDefault();
     openSettings();
+    return;
+  }
+
+  // Ctrl+B = toggle sidebar expand/collapse
+  if (e.key === "b" || e.key === "B") {
+    e.preventDefault();
+    setSidebarExpanded(!sidebarExpanded);
     return;
   }
 

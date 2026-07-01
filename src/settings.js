@@ -5,6 +5,7 @@ let deleteIndex = -1;
 let dragSrcIndex = -1;
 let iconDataUrl = ""; // stores base64 data URL for image icon
 let savePrefsFeedbackTimer = null;
+let loadedPrefs = {}; // full prefs from backend, so save preserves fields not shown here
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 
@@ -50,6 +51,7 @@ async function init() {
 
     // Load preferences
     const prefs = await invoke("get_preferences");
+    loadedPrefs = prefs;
     document.getElementById("pref-icon-size").value = prefs.icon_size;
     document.getElementById("pref-icon-size-val").textContent = prefs.icon_size + "px";
     document.getElementById("pref-sidebar-color").value = prefs.sidebar_color;
@@ -487,6 +489,8 @@ async function savePreferences() {
   const savePrefsBtn = document.getElementById("save-prefs-btn");
 
   const prefs = {
+    // Preserve fields not editable on this page (e.g. sidebar_expanded).
+    ...loadedPrefs,
     icon_size: parseInt(document.getElementById("pref-icon-size").value),
     sidebar_color: document.getElementById("pref-sidebar-color").value,
     accent_color: document.getElementById("pref-accent-color").value,

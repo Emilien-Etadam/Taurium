@@ -10,7 +10,10 @@ use tauri_plugin_notification::NotificationExt;
 use crate::config::{extract_badge_count, load_preferences, Service, ServicesLoadInfo};
 use crate::error::TauriumError;
 
+/// Compact sidebar width (icons only).
 pub const SIDEBAR_WIDTH: f64 = 48.0;
+/// Expanded sidebar width (icons + labels + group names).
+pub const SIDEBAR_EXPANDED_WIDTH: f64 = 210.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
 // Notification body templates (English)
@@ -97,8 +100,19 @@ pub struct WebviewState {
     pub last_activity: Mutex<HashMap<String, Instant>>,
     /// Badge counts per service id
     pub badge_counts: Mutex<HashMap<String, u32>>,
+    /// Current sidebar width in logical px (compact or expanded).
+    pub sidebar_width: Mutex<f64>,
     /// Warnings/errors from the initial services.json load (read-only after setup).
     pub services_load_info: ServicesLoadInfo,
+}
+
+/// Current sidebar width, falling back to the compact width if the lock is poisoned.
+pub fn current_sidebar_width(state: &WebviewState) -> f64 {
+    state
+        .sidebar_width
+        .lock()
+        .map(|w| *w)
+        .unwrap_or(SIDEBAR_WIDTH)
 }
 
 fn is_meaningful_page_url(url: &str) -> bool {
@@ -222,10 +236,13 @@ pub fn reload_service_webview(
     Ok(())
 }
 
-fn window_content_size(window: &tauri::Window) -> Result<(f64, f64), TauriumError> {
+fn window_content_size(
+    window: &tauri::Window,
+    sidebar_width: f64,
+) -> Result<(f64, f64), TauriumError> {
     let inner_size = window.inner_size()?;
     let scale = window.scale_factor()?;
-    let width = (inner_size.width as f64 / scale) - SIDEBAR_WIDTH;
+    let width = (inner_size.width as f64 / scale) - sidebar_width;
     let height = inner_size.height as f64 / scale;
     Ok((width, height))
 }
@@ -234,6 +251,7 @@ fn create_service_webview_inner(
     app: &AppHandle,
     window: &tauri::Window,
     service: &Service,
+    sidebar_x: f64,
     content_width: f64,
     content_height: f64,
 ) -> Result<(), TauriumError> {
@@ -268,7 +286,7 @@ fn create_service_webview_inner(
 
     let webview = window.add_child(
         builder,
-        LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
+        LogicalPosition::new(sidebar_x, 0.0),
         LogicalSize::new(content_width, content_height),
     )?;
 
@@ -288,7 +306,8 @@ fn create_service_webview_inner(
 /// Safe to call from command handlers: it posts add_child() on the main thread.
 pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), TauriumError> {
     let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
-    let (content_width, content_height) = window_content_size(&window)?;
+    let sidebar_x = current_sidebar_width(&app.state::<WebviewState>());
+    let (content_width, content_height) = window_content_size(&window, sidebar_x)?;
 
     let app_handle = app.clone();
     let window_handle = window.clone();
@@ -301,6 +320,7 @@ pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), 
             &app_handle,
             &window_handle,
             &service_cloned,
+            sidebar_x,
             content_width,
             content_height,
         );
@@ -467,7 +487,8 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
         Some(w) => w,
         None => return,
     };
-    let (width, height) = match window_content_size(&window) {
+    let sidebar_width = current_sidebar_width(state);
+    let (width, height) = match window_content_size(&window, sidebar_width) {
         Ok(size) => size,
         Err(_) => return,
     };
@@ -476,7 +497,7 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
             .set_size(tauri::Size::Logical(LogicalSize::new(
-                SIDEBAR_WIDTH,
+                sidebar_width,
                 height,
             )))
             .ok();
@@ -489,7 +510,7 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
             .ok();
         settings
             .set_position(tauri::Position::Logical(LogicalPosition::new(
-                SIDEBAR_WIDTH,
+                sidebar_width,
                 0.0,
             )))
             .ok();
@@ -510,12 +531,20 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
                 .ok();
             webview
                 .set_position(tauri::Position::Logical(LogicalPosition::new(
-                    SIDEBAR_WIDTH,
+                    sidebar_width,
                     0.0,
                 )))
                 .ok();
         }
     }
+}
+
+/// Set the sidebar width (compact/expanded) and reflow all webviews accordingly.
+pub fn apply_sidebar_width(app: &AppHandle, state: &WebviewState, width: f64) {
+    if let Ok(mut w) = state.sidebar_width.lock() {
+        *w = width;
+    }
+    resize_all_webviews(app, state);
 }
 
 fn cleanup_service_webview_state(state: &WebviewState, id: &str) -> Result<(), TauriumError> {
