@@ -43,7 +43,9 @@ fn get_services(state: tauri::State<WebviewState>) -> Result<Vec<Service>, Tauri
     Ok(services.clone())
 }
 
-#[tauri::command]
+// `async` forces this off the main thread: switch_to may create a webview on
+// demand (add_child), which would deadlock WebView2 if run on the main thread.
+#[tauri::command(async)]
 fn switch_service(
     app: tauri::AppHandle,
     state: tauri::State<WebviewState>,

@@ -423,11 +423,28 @@ pub fn apply_zoom_from_state(app: &AppHandle, state: &WebviewState, id: &str) {
 
 pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), TauriumError> {
     eprintln!("[Taurium] Switching to service: {}", id);
+
+    // Create the webview on demand if it doesn't exist yet (e.g. a service
+    // added after startup). Callers of switch_to run off the main thread
+    // (switch_service / apply_services are command(async)), so the add_child
+    // inside create_service_webview won't re-enter and deadlock WebView2.
+    if app.get_webview(id).is_none() {
+        let service = {
+            let services = state
+                .services
+                .lock()
+                .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+            services.iter().find(|s| s.id == id).cloned()
+        };
+        let Some(service) = service else {
+            return Err(TauriumError::WebviewNotFound(id.to_string()));
+        };
+        eprintln!("[Taurium] Webview '{}' missing, creating on demand", id);
+        create_service_webview(app, &service)?;
+    }
+
     hide_all(app, state);
 
-    // Webviews are only created in setup() because add_child() deadlocks
-    // from command handlers on Windows. If the webview doesn't exist,
-    // the service was added after startup and requires a restart.
     let webview = app
         .get_webview(id)
         .ok_or_else(|| TauriumError::WebviewNotFound(id.to_string()))?;
@@ -664,10 +681,17 @@ pub fn apply_service_changes(
         remove_service_webview(app, id)?;
     }
 
-    // Create newly added service webviews on-the-fly
+    // Create newly added service webviews on-the-fly (best-effort: if creation
+    // fails/times out here, switch_to will create it lazily on first click, so
+    // don't fail the whole save).
     for service in &to_add {
         eprintln!("[Taurium] Creating new webview on-the-fly: {}", service.id);
-        create_service_webview(app, service)?;
+        if let Err(e) = create_service_webview(app, service) {
+            eprintln!(
+                "[Taurium] On-the-fly creation of '{}' failed ({}); will create lazily on switch",
+                service.id, e
+            );
+        }
     }
 
     // Recreate webviews when user-agent changed on existing services
