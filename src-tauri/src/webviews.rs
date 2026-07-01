@@ -12,6 +12,12 @@ use crate::error::TauriumError;
 pub const SIDEBAR_WIDTH: f64 = 48.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
+// Notification body templates (English)
+const NOTIFY_SINGLE_FROM: &str = "1 notification from {service}";
+const NOTIFY_MULTIPLE_FROM: &str = "{count} notifications from {service}";
+const NOTIFY_NEW_SINGLE: &str = "New notification from {service}";
+const NOTIFY_NEW_MULTIPLE: &str = "{count} new notifications from {service}";
+
 /// Diff existing webview ids against the new service list.
 /// Returns `(to_remove, to_add)`; unchanged ids are implicit (intersection).
 pub(crate) fn compute_service_changes(
@@ -40,16 +46,20 @@ pub(crate) fn notification_body_for_badge_change(
     }
     let body = if prev_count == 0 {
         if count == 1 {
-            format!("1 notification from {}", service_name)
+            NOTIFY_SINGLE_FROM.replace("{service}", service_name)
         } else {
-            format!("{} notifications from {}", count, service_name)
+            NOTIFY_MULTIPLE_FROM
+                .replace("{count}", &count.to_string())
+                .replace("{service}", service_name)
         }
     } else {
         let new_msgs = count - prev_count;
         if new_msgs == 1 {
-            format!("New notification from {}", service_name)
+            NOTIFY_NEW_SINGLE.replace("{service}", service_name)
         } else {
-            format!("{} new notifications from {}", new_msgs, service_name)
+            NOTIFY_NEW_MULTIPLE
+                .replace("{count}", &new_msgs.to_string())
+                .replace("{service}", service_name)
         }
     };
     Some(body)
@@ -171,6 +181,27 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     if let Some(wv) = app.get_webview(service_id) {
         apply_service_body_zoom(&wv, zoom);
     }
+}
+
+/// Reload a service webview by navigating it back to its configured URL.
+pub fn reload_service_webview(
+    app: &AppHandle,
+    state: &WebviewState,
+    id: &str,
+) -> Result<(), TauriumError> {
+    eprintln!("[Taurium] Reloading service: {}", id);
+    let services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+    if let Some(service) = services.iter().find(|s| s.id == id) {
+        if let Some(webview) = app.get_webview(id) {
+            let url = service.url.clone();
+            let js = window_location_replace_js(&url);
+            webview.eval(&js)?;
+        }
+    }
+    Ok(())
 }
 
 fn window_content_size(window: &tauri::Window) -> Result<(f64, f64), TauriumError> {
@@ -399,14 +430,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
         Some(w) => w,
         None => return,
     };
-    let inner_size = match window.inner_size() {
-        Ok(s) => s,
+    let (width, height) = match window_content_size(&window) {
+        Ok(size) => size,
         Err(_) => return,
     };
-    let scale = window.scale_factor().unwrap_or(1.0);
-
-    let width = (inner_size.width as f64 / scale) - SIDEBAR_WIDTH;
-    let height = inner_size.height as f64 / scale;
 
     // Resize sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
