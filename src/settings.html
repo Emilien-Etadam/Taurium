@@ -41,11 +41,12 @@
         Icon
         <div class="icon-input-row">
           <input type="text" id="input-icon" placeholder="&#128231; or use image" />
-          <label class="btn btn-file" title="Import PNG image">
+          <label class="btn btn-file" title="Import image">
             &#128247;
             <input type="file" id="input-icon-file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden />
           </label>
         </div>
+        <span id="err-icon" class="field-error hidden"></span>
         <div id="icon-preview" class="icon-preview hidden">
           <img id="icon-preview-img" />
           <button id="icon-preview-clear" class="btn-icon delete" title="Remove">&times;</button>

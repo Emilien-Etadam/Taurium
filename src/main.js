@@ -23,18 +23,29 @@ function renderSidebar(services) {
     btn.className = "service-icon";
     btn.dataset.id = service.id;
     btn.title = service.name + (index < 9 ? " (Ctrl+" + (index + 1) + ")" : "");
+    // Keyboard accessibility: focusable, announced, activable with Enter/Space
+    btn.setAttribute("role", "button");
+    btn.setAttribute("tabindex", "0");
+    btn.setAttribute("aria-label", service.name);
 
     // Support both emoji and image icons
     if (service.icon.startsWith("data:image")) {
       const img = document.createElement("img");
       img.src = service.icon;
       img.className = "icon-img";
+      img.alt = "";
       btn.appendChild(img);
     } else {
       btn.textContent = service.icon;
     }
 
     btn.addEventListener("click", () => switchService(service.id));
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        switchService(service.id);
+      }
+    });
     // Right-click shows native context menu via Tauri
     btn.addEventListener("contextmenu", (e) => {
       e.preventDefault();
@@ -68,8 +79,15 @@ async function init() {
     services = await invoke("get_services");
     renderSidebar(services);
 
-    // Settings button
-    document.getElementById("settings-btn").addEventListener("click", openSettings);
+    // Settings button (click + keyboard)
+    const settingsBtn = document.getElementById("settings-btn");
+    settingsBtn.addEventListener("click", openSettings);
+    settingsBtn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openSettings();
+      }
+    });
 
     // Keyboard shortcuts
     document.addEventListener("keydown", handleKeyboard);
