@@ -70,6 +70,15 @@ pub fn get_services_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("services.json")
 }
 
+/// Only `http`/`https` service URLs are accepted; everything else
+/// (`javascript:`, `file:`, `ftp:`, garbage…) is rejected.
+fn is_valid_service_url(raw: &str) -> bool {
+    matches!(
+        raw.parse::<url::Url>(),
+        Ok(u) if matches!(u.scheme(), "http" | "https")
+    )
+}
+
 /// Services créés au premier lancement (fichier absent).
 fn default_services() -> Vec<Service> {
     vec![
@@ -121,10 +130,10 @@ pub fn load_services(app_data_dir: &Path) -> Vec<Service> {
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "[]".to_string());
     let services: Vec<Service> = serde_json::from_str(&content).unwrap_or_default();
 
-    // Filter out services with invalid URLs
+    // Filter out services whose URL is not a valid http/https URL
     services
         .into_iter()
-        .filter(|s| s.url.parse::<url::Url>().is_ok())
+        .filter(|s| is_valid_service_url(&s.url))
         .map(|mut s| {
             if s.user_agent.as_deref() == Some("") {
                 s.user_agent = None;
@@ -241,10 +250,12 @@ mod tests {
             ]
         );
 
-        // Valid file: should load entries and filter invalid URLs.
+        // Valid file: should load entries and filter non-http(s) / invalid URLs.
         let valid_json = r#"[
             {"id":"ok","name":"Ok","url":"https://example.com","icon":"ok.svg"},
-            {"id":"bad-url","name":"Bad","url":"not-a-url","icon":"bad.svg"}
+            {"id":"bad-url","name":"Bad","url":"not-a-url","icon":"bad.svg"},
+            {"id":"js-scheme","name":"Js","url":"javascript:alert(1)","icon":"x"},
+            {"id":"file-scheme","name":"File","url":"file:///etc/passwd","icon":"x"}
         ]"#;
         fs::write(&services_path, valid_json).expect("valid services.json should be written");
         let loaded_valid = load_services(&app_data_dir);

@@ -1,4 +1,4 @@
-# FerdiLight — Plan de développement
+# Taurium — Plan de développement
 
 ## Objectif
 
@@ -7,7 +7,7 @@ App Tauri v2 minimaliste type Ferdium. Sidebar avec icônes, multiwebview native
 ## Structure du projet
 
 ```
-ferdilight/
+taurium/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── main.rs          # setup app, commandes Tauri
@@ -24,7 +24,7 @@ ferdilight/
 ## Étapes de développement
 
 ### 1. Init projet
-- `npm create tauri-app@latest ferdilight` avec vanilla template, Tauri v2
+- `npm create tauri-app@latest taurium` avec vanilla template, Tauri v2
 - Vérifier que tout compile et se lance
 
 ### 2. Configuration des services

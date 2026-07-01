@@ -73,6 +73,12 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.service-icon:focus-visible,
+.settings-icon:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
 .service-icon.active {
   border-left-color: var(--accent-color);
   background: rgba(233, 69, 96, 0.15);
