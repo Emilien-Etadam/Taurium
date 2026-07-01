@@ -3,15 +3,29 @@
 > **The anti-electron workspace browser.**
 > *Le navigateur d'espace de travail anti-electron.*
 
-Taurium aggregates your web services (WhatsApp, Slack, Discord...) into a single, high-performance window. Built with **Tauri v2 + Rust**.
+Taurium aggregates your web services (WhatsApp, Slack, Discord...) into a single, high-performance window. Built with **Tauri v2 + Rust** — each service runs in its own native webview, not a bundled Chromium.
 
+## ✨ Features
+
+*   **Multi-service sidebar** — add any web app; switch with a click or `Ctrl+1`–`Ctrl+9`.
+*   **Service catalog** — add popular services (Telegram, Teams, Notion, GitHub…) from a built-in list, or define your own.
+*   **Isolated sessions** — each service has its own cookie/session store, so multiple accounts don't collide.
+*   **Notifications & unread badges** — desktop notifications and sidebar badges derived from page titles.
+*   **Memory-friendly** — services are lazy-loaded and inactive ones hibernate after 10 minutes.
+*   **Per-service tweaks** — custom zoom, custom user-agent (applied immediately on save), emoji or image icons.
+*   **Customizable UI** — dark theme, adjustable icon size, sidebar and accent colors.
+
+## 🖥️ Supported platforms
+
+*   **Windows** and **Linux** — built and released.
+*   **macOS is not currently supported.** (Session isolation relies on a per-webview data directory that isn't wired up on macOS, so it's excluded from CI and releases for now.)
 
 ## 🚀 Get Started
 
 ### Prerequisites
 *   Rust (latest stable)
 *   Node.js (LTS) & npm
-*   System WebView2 (Usually pre-installed on Windows/Modern OS)
+*   Linux only: WebKitGTK & related dev libraries (see `.github/workflows/ci.yml` for the exact `apt` list). Windows uses the system WebView2 runtime (usually pre-installed).
 
 ### Installation
 
@@ -28,6 +42,28 @@ npm run tauri dev
 
 # 4. Build for production
 npm run tauri build
+```
+
+## 📦 Releases
+
+Installers are produced by a tag-triggered GitHub Actions workflow
+(`.github/workflows/release.yml`). Pushing a tag that starts with `v` builds
+Windows (`.exe`, `.msi`) and Linux (`.deb`, `.AppImage`) installers and opens a
+**draft** GitHub Release — nothing is published until you review and publish the
+draft manually.
+
+```bash
+# Trigger a (test) release
+git tag v0.1.0-test1
+git push origin v0.1.0-test1
+```
+
+To discard a test run afterwards, delete the draft release on GitHub and remove
+the tag:
+
+```bash
+git push --delete origin v0.1.0-test1
+git tag -d v0.1.0-test1
 ```
 
 ## 📄 License
