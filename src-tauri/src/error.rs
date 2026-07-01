@@ -26,15 +26,18 @@ impl Serialize for TauriumError {
         S: serde::Serializer,
     {
         let mut state = serializer.serialize_struct("TauriumError", 2)?;
-        state.serialize_field("type", match self {
-            TauriumError::WebviewNotFound(_) => "WebviewNotFound",
-            TauriumError::ServiceNotFound(_) => "ServiceNotFound",
-            TauriumError::WindowNotFound => "WindowNotFound",
-            TauriumError::MutexPoisoned(_) => "MutexPoisoned",
-            TauriumError::Io(_) => "Io",
-            TauriumError::Tauri(_) => "Tauri",
-            TauriumError::Serialization(_) => "Serialization",
-        })?;
+        state.serialize_field(
+            "type",
+            match self {
+                TauriumError::WebviewNotFound(_) => "WebviewNotFound",
+                TauriumError::ServiceNotFound(_) => "ServiceNotFound",
+                TauriumError::WindowNotFound => "WindowNotFound",
+                TauriumError::MutexPoisoned(_) => "MutexPoisoned",
+                TauriumError::Io(_) => "Io",
+                TauriumError::Tauri(_) => "Tauri",
+                TauriumError::Serialization(_) => "Serialization",
+            },
+        )?;
         state.serialize_field("message", &self.to_string())?;
         state.end()
     }

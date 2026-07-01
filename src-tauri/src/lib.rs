@@ -2,7 +2,9 @@ mod config;
 mod error;
 mod webviews;
 
-use config::{load_preferences, load_services, load_state, save_state, AppState, Preferences, Service};
+use config::{
+    load_preferences, load_services, load_state, save_state, AppState, Preferences, Service,
+};
 use error::TauriumError;
 use std::collections::{HashMap, HashSet};
 use tauri::menu::{ContextMenu, MenuBuilder, MenuItemBuilder};
@@ -29,7 +31,11 @@ fn get_services(state: tauri::State<WebviewState>) -> Result<Vec<Service>, Tauri
 }
 
 #[tauri::command]
-fn switch_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), TauriumError> {
+fn switch_service(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+    id: String,
+) -> Result<(), TauriumError> {
     webviews::switch_to(&app, &state, &id)?;
 
     let app_state = AppState {
@@ -47,14 +53,20 @@ fn get_last_active_service(state: tauri::State<WebviewState>) -> Option<String> 
 }
 
 #[tauri::command]
-fn save_services_cmd(state: tauri::State<WebviewState>, services: Vec<Service>) -> Result<(), TauriumError> {
+fn save_services_cmd(
+    state: tauri::State<WebviewState>,
+    services: Vec<Service>,
+) -> Result<(), TauriumError> {
     config::save_services(&state.app_data_dir, &services);
     eprintln!("[Taurium] Services saved ({} services)", services.len());
     Ok(())
 }
 
 #[tauri::command]
-fn open_settings(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), TauriumError> {
+fn open_settings(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+) -> Result<(), TauriumError> {
     webviews::show_settings(&app, &state)
 }
 
@@ -65,7 +77,11 @@ fn restart_app(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
-fn reload_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: String) -> Result<(), TauriumError> {
+fn reload_service(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+    id: String,
+) -> Result<(), TauriumError> {
     eprintln!("[Taurium] Reloading service: {}", id);
     let services = state
         .services
@@ -82,7 +98,9 @@ fn reload_service(app: tauri::AppHandle, state: tauri::State<WebviewState>, id: 
 }
 
 #[tauri::command]
-fn get_badge_counts(state: tauri::State<WebviewState>) -> Result<HashMap<String, u32>, TauriumError> {
+fn get_badge_counts(
+    state: tauri::State<WebviewState>,
+) -> Result<HashMap<String, u32>, TauriumError> {
     let badge_counts = state
         .badge_counts
         .lock()
@@ -91,7 +109,10 @@ fn get_badge_counts(state: tauri::State<WebviewState>) -> Result<HashMap<String,
 }
 
 #[tauri::command]
-fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Result<Option<String>, TauriumError> {
+fn get_service_url(
+    state: tauri::State<WebviewState>,
+    id: String,
+) -> Result<Option<String>, TauriumError> {
     let services = state
         .services
         .lock()
@@ -100,7 +121,10 @@ fn get_service_url(state: tauri::State<WebviewState>, id: String) -> Result<Opti
 }
 
 #[tauri::command]
-fn apply_services(app: tauri::AppHandle, state: tauri::State<WebviewState>) -> Result<(), TauriumError> {
+fn apply_services(
+    app: tauri::AppHandle,
+    state: tauri::State<WebviewState>,
+) -> Result<(), TauriumError> {
     let new_services = load_services(&state.app_data_dir);
     webviews::apply_service_changes(&app, &state, new_services)
 }
@@ -115,26 +139,17 @@ fn show_service_context_menu(app: tauri::AppHandle, id: String) -> Result<(), Ta
         .lock()
         .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))? = Some(id);
 
-    let reload_item = MenuItemBuilder::with_id("ctx_reload", "Reload")
-        .build(&app)
-        ?;
-    let zoom_in_item = MenuItemBuilder::with_id("ctx_zoom_in", "Zoom In")
-        .build(&app)
-        ?;
-    let zoom_out_item = MenuItemBuilder::with_id("ctx_zoom_out", "Zoom Out")
-        .build(&app)
-        ?;
-    let open_item = MenuItemBuilder::with_id("ctx_open_browser", "Open in browser")
-        .build(&app)
-        ?;
+    let reload_item = MenuItemBuilder::with_id("ctx_reload", "Reload").build(&app)?;
+    let zoom_in_item = MenuItemBuilder::with_id("ctx_zoom_in", "Zoom In").build(&app)?;
+    let zoom_out_item = MenuItemBuilder::with_id("ctx_zoom_out", "Zoom Out").build(&app)?;
+    let open_item = MenuItemBuilder::with_id("ctx_open_browser", "Open in browser").build(&app)?;
 
     let menu = MenuBuilder::new(&app)
         .item(&reload_item)
         .item(&zoom_in_item)
         .item(&zoom_out_item)
         .item(&open_item)
-        .build()
-        ?;
+        .build()?;
 
     let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
     menu.popup(window)?;
@@ -164,9 +179,7 @@ fn save_preferences_cmd(
         "window.__applyPreferences && window.__applyPreferences({})",
         prefs_json
     );
-    sidebar
-        .eval(&js)
-        ?;
+    sidebar.eval(&js)?;
 
     eprintln!("[Taurium] Preferences saved and applied to sidebar");
     Ok(prefs_json)
@@ -279,7 +292,10 @@ pub fn run() {
             // Must be done here in setup() because add_child() deadlocks
             // when called from command handlers on Windows (WebView2 STA issue).
             for service in &services {
-                eprintln!("[Taurium] Pre-creating webview: {} (about:blank, lazy)", service.id);
+                eprintln!(
+                    "[Taurium] Pre-creating webview: {} (about:blank, lazy)",
+                    service.id
+                );
                 webviews::create_service_webview(app.handle(), service)?;
             }
 
@@ -364,12 +380,10 @@ pub fn run() {
 
             // Hibernation timer: check every 60 seconds
             let app_handle = app.handle().clone();
-            std::thread::spawn(move || {
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(60));
-                    let state = app_handle.state::<WebviewState>();
-                    webviews::check_hibernation(&app_handle, &state);
-                }
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(60));
+                let state = app_handle.state::<WebviewState>();
+                webviews::check_hibernation(&app_handle, &state);
             });
 
             Ok(())
