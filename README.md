@@ -44,27 +44,6 @@ npm run tauri dev
 npm run tauri build
 ```
 
-## 📦 Releases
-
-Installers are produced by a tag-triggered GitHub Actions workflow
-(`.github/workflows/release.yml`). Pushing a tag that starts with `v` builds
-Windows (`.exe`, `.msi`) and Linux (`.deb`, `.AppImage`) installers and opens a
-**draft** GitHub Release — nothing is published until you review and publish the
-draft manually.
-
-```bash
-# Trigger a (test) release
-git tag v0.1.0-test1
-git push origin v0.1.0-test1
-```
-
-To discard a test run afterwards, delete the draft release on GitHub and remove
-the tag:
-
-```bash
-git push --delete origin v0.1.0-test1
-git tag -d v0.1.0-test1
-```
 
 ## 📄 License
 
