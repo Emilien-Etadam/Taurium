@@ -2,6 +2,8 @@ let activeId = null;
 let settingsOpen = false;
 let services = [];
 
+import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
+
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
@@ -79,6 +81,9 @@ async function init() {
     services = await invoke("get_services");
     renderSidebar(services);
 
+    const loadInfo = await invoke("get_services_load_info");
+    showServicesLoadInfo(loadInfo);
+
     // Settings button (click + keyboard)
     const settingsBtn = document.getElementById("settings-btn");
     settingsBtn.addEventListener("click", openSettings);
@@ -100,8 +105,8 @@ async function init() {
       await switchService(services[0].id);
     }
   } catch (err) {
-    document.body.style.color = "red";
-    document.body.innerHTML += "<pre>Init error: " + err + "</pre>";
+    showToast("Init error: " + formatInvokeError(err), { durationMs: 10000 });
+    console.error("Init error:", err);
   }
 }
 
@@ -131,6 +136,7 @@ async function switchService(id) {
     settingsOpen = false;
     updateActiveState();
   } catch (err) {
+    showToast("Could not switch service: " + formatInvokeError(err));
     console.error("Switch error:", err);
   }
 
@@ -147,6 +153,7 @@ async function openSettings() {
     settingsOpen = true;
     updateActiveState();
   } catch (err) {
+    showToast("Could not open settings: " + formatInvokeError(err));
     console.error("Settings error:", err);
   }
 }
@@ -190,6 +197,7 @@ window.__reloadSidebar = async function() {
     const badges = await invoke("get_badge_counts");
     window.__updateBadges(badges);
   } catch (err) {
+    showToast("Could not reload sidebar: " + formatInvokeError(err));
     console.error("Reload sidebar error:", err);
   }
 };

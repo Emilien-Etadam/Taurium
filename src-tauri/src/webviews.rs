@@ -6,7 +6,7 @@ use std::time::Instant;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::config::{extract_badge_count, load_preferences, Service};
+use crate::config::{extract_badge_count, load_preferences, Service, ServicesLoadInfo};
 use crate::error::TauriumError;
 
 pub const SIDEBAR_WIDTH: f64 = 48.0;
@@ -96,6 +96,8 @@ pub struct WebviewState {
     pub last_activity: Mutex<HashMap<String, Instant>>,
     /// Badge counts per service id
     pub badge_counts: Mutex<HashMap<String, u32>>,
+    /// Warnings/errors from the initial services.json load (read-only after setup).
+    pub services_load_info: ServicesLoadInfo,
 }
 
 /// Handle document title change: update badge count, send notification, refresh sidebar

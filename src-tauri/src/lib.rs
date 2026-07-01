@@ -4,6 +4,7 @@ mod webviews;
 
 use config::{
     load_preferences, load_services, load_state, save_state, AppState, Preferences, Service,
+    ServicesLoadInfo,
 };
 use error::TauriumError;
 use std::collections::{HashMap, HashSet};
@@ -20,6 +21,11 @@ if (!window.__TAURI__ && window.__TAURI_INTERNALS__ && typeof window.__TAURI_INT
   };
 }
 "#;
+
+#[derive(serde::Serialize)]
+pub struct ApplyServicesResponse {
+    pub filtered_url_count: usize,
+}
 
 #[tauri::command]
 fn get_services(state: tauri::State<WebviewState>) -> Result<Vec<Service>, TauriumError> {
@@ -41,7 +47,7 @@ fn switch_service(
     let app_state = AppState {
         last_active_service: Some(id),
     };
-    save_state(&state.app_data_dir, &app_state);
+    save_state(&state.app_data_dir, &app_state)?;
 
     Ok(())
 }
@@ -57,7 +63,14 @@ fn save_services_cmd(
     state: tauri::State<WebviewState>,
     services: Vec<Service>,
 ) -> Result<(), TauriumError> {
-    config::save_services(&state.app_data_dir, &services);
+    config::save_services(&state.app_data_dir, &services)?;
+    {
+        let mut stored = state
+            .services
+            .lock()
+            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+        *stored = services.clone();
+    }
     eprintln!("[Taurium] Services saved ({} services)", services.len());
     Ok(())
 }
@@ -112,9 +125,17 @@ fn get_service_url(
 fn apply_services(
     app: tauri::AppHandle,
     state: tauri::State<WebviewState>,
-) -> Result<(), TauriumError> {
-    let new_services = load_services(&state.app_data_dir);
-    webviews::apply_service_changes(&app, &state, new_services)
+) -> Result<ApplyServicesResponse, TauriumError> {
+    let loaded = load_services(&state.app_data_dir)?;
+    webviews::apply_service_changes(&app, &state, loaded.services)?;
+    Ok(ApplyServicesResponse {
+        filtered_url_count: loaded.filtered_url_count,
+    })
+}
+
+#[tauri::command]
+fn get_services_load_info(state: tauri::State<WebviewState>) -> ServicesLoadInfo {
+    state.services_load_info.clone()
 }
 
 #[tauri::command]
@@ -156,7 +177,7 @@ fn save_preferences_cmd(
     state: tauri::State<WebviewState>,
     prefs: Preferences,
 ) -> Result<String, TauriumError> {
-    config::save_preferences(&state.app_data_dir, &prefs);
+    config::save_preferences(&state.app_data_dir, &prefs)?;
     let prefs_json = serde_json::to_string(&prefs)?;
 
     let sidebar = app
@@ -202,7 +223,9 @@ fn persist_and_apply_service_zoom(
             Some(new_z)
         };
         let z = svc.zoom;
-        config::save_services(&state.app_data_dir, &services);
+        config::save_services(&state.app_data_dir, &services).unwrap_or_else(|err| {
+            eprintln!("[Taurium] Failed to save service zoom: {err}");
+        });
         z
     };
     if let Some(wv) = app.get_webview(service_id) {
@@ -221,7 +244,30 @@ pub fn run() {
                 .app_data_dir()
                 .expect("Failed to get app data dir");
 
-            let services = load_services(&app_data_dir);
+            let (services, services_load_info) = match load_services(&app_data_dir) {
+                Ok(loaded) => {
+                    if loaded.created_defaults {
+                        eprintln!("[Taurium] Created default services.json");
+                    }
+                    (
+                        loaded.services,
+                        ServicesLoadInfo {
+                            filtered_url_count: loaded.filtered_url_count,
+                            load_error: None,
+                        },
+                    )
+                }
+                Err(err) => {
+                    eprintln!("[Taurium] Failed to load services: {err}");
+                    (
+                        Vec::new(),
+                        ServicesLoadInfo {
+                            filtered_url_count: 0,
+                            load_error: Some(err.to_string()),
+                        },
+                    )
+                }
+            };
 
             // Register state FIRST
             let webview_state = WebviewState {
@@ -232,6 +278,7 @@ pub fn run() {
                 navigated: std::sync::Mutex::new(HashSet::new()),
                 last_activity: std::sync::Mutex::new(HashMap::new()),
                 badge_counts: std::sync::Mutex::new(HashMap::new()),
+                services_load_info,
             };
             app.manage(webview_state);
             app.manage(ContextMenuTarget(std::sync::Mutex::new(None)));
@@ -378,6 +425,7 @@ pub fn run() {
             get_preferences,
             save_preferences_cmd,
             apply_services,
+            get_services_load_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
