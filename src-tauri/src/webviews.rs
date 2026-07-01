@@ -33,7 +33,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     }
 
     let count = extract_badge_count(title);
-    eprintln!("[Taurium] Title changed: '{}' → badge count: {} (service: {})", title, count, service_id);
+    eprintln!(
+        "[Taurium] Title changed: '{}' → badge count: {} (service: {})",
+        title, count, service_id
+    );
     let state = app.state::<WebviewState>();
 
     // Update badge counts (hold lock briefly, then release before eval)
@@ -73,8 +76,17 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
                 format!("{} new notifications from {}", new_msgs, service_name)
             }
         };
-        eprintln!("[Taurium] Sending notification: {} - {}", service_name, body);
-        match app.notification().builder().title(service_name).body(&body).show() {
+        eprintln!(
+            "[Taurium] Sending notification: {} - {}",
+            service_name, body
+        );
+        match app
+            .notification()
+            .builder()
+            .title(service_name)
+            .body(&body)
+            .show()
+        {
             Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
             Err(e) => eprintln!("[Taurium] Notification error: {}", e),
         }
@@ -82,7 +94,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Update sidebar badges (lock already released, safe to eval)
     if let Some(sidebar) = app.get_webview("sidebar") {
-        let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
+        let js = format!(
+            "window.__updateBadges && window.__updateBadges({})",
+            badges_json
+        );
         sidebar.eval(&js).ok();
     }
 
@@ -125,16 +140,14 @@ fn create_service_webview_inner(
     let sid = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
-    let data_dir = state
-        .app_data_dir
-        .join("webview_data")
-        .join(&service.id);
+    let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
-    let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
-        .on_document_title_changed(move |_wv, title| {
+    let builder = tauri::webview::WebviewBuilder::new(&service.id, url).on_document_title_changed(
+        move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
-        });
+        },
+    );
     let builder = if let Some(ref ua) = service.user_agent {
         builder.user_agent(ua)
     } else {
@@ -143,13 +156,11 @@ fn create_service_webview_inner(
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     let builder = builder.data_directory(data_dir.clone());
 
-    let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
-            LogicalSize::new(content_width, content_height),
-        )
-        ?;
+    let webview = window.add_child(
+        builder,
+        LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
+        LogicalSize::new(content_width, content_height),
+    )?;
 
     webview.hide()?;
 
@@ -165,13 +176,8 @@ fn create_service_webview_inner(
 
 /// Create a single service webview (hidden, lazy-loaded with about:blank).
 /// Safe to call from command handlers: it posts add_child() on the main thread.
-pub fn create_service_webview(
-    app: &AppHandle,
-    service: &Service,
-) -> Result<(), TauriumError> {
-    let window = app
-        .get_window("main")
-        .ok_or(TauriumError::WindowNotFound)?;
+pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), TauriumError> {
+    let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
     let (content_width, content_height) = window_content_size(&window)?;
 
     let app_handle = app.clone();
@@ -180,18 +186,16 @@ pub fn create_service_webview(
     let service_id = service.id.clone();
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), TauriumError>>();
 
-    window
-        .run_on_main_thread(move || {
-            let result = create_service_webview_inner(
-                &app_handle,
-                &window_handle,
-                &service_cloned,
-                content_width,
-                content_height,
-            );
-            let _ = tx.send(result);
-        })
-        ?;
+    window.run_on_main_thread(move || {
+        let result = create_service_webview_inner(
+            &app_handle,
+            &window_handle,
+            &service_cloned,
+            content_width,
+            content_height,
+        );
+        let _ = tx.send(result);
+    })?;
 
     match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(result) => result,
@@ -263,11 +267,9 @@ pub(crate) fn apply_service_body_zoom(webview: &tauri::Webview, zoom: Option<f64
     let js = if (z - 1.0).abs() < f64::EPSILON {
         r#"try{if(document.body)document.body.style.zoom="";}catch(e){}"#.to_string()
     } else {
-        let literal = serde_json::to_string(&format!("{z}"))
-            .unwrap_or_else(|_| "\"1\"".to_string());
-        format!(
-            "try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}"
-        )
+        let literal =
+            serde_json::to_string(&format!("{z}")).unwrap_or_else(|_| "\"1\"".to_string());
+        format!("try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}")
     };
     webview.eval(&js).ok();
 }
@@ -356,7 +358,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
     // Resize sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
-            .set_size(tauri::Size::Logical(LogicalSize::new(SIDEBAR_WIDTH, height)))
+            .set_size(tauri::Size::Logical(LogicalSize::new(
+                SIDEBAR_WIDTH,
+                height,
+            )))
             .ok();
     }
 
@@ -366,7 +371,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
             .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
             .ok();
         settings
-            .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+            .set_position(tauri::Position::Logical(LogicalPosition::new(
+                SIDEBAR_WIDTH,
+                0.0,
+            )))
             .ok();
     }
 
@@ -384,14 +392,116 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
                 .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
                 .ok();
             webview
-                .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+                .set_position(tauri::Position::Logical(LogicalPosition::new(
+                    SIDEBAR_WIDTH,
+                    0.0,
+                )))
                 .ok();
         }
     }
 }
 
+fn cleanup_service_webview_state(state: &WebviewState, id: &str) -> Result<(), TauriumError> {
+    state
+        .created_ids
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .retain(|i| i != id);
+    state
+        .navigated
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .remove(id);
+    state
+        .badge_counts
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .remove(id);
+    state
+        .last_activity
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .remove(id);
+    Ok(())
+}
+
+fn remove_service_webview_inner(
+    app: &AppHandle,
+    state: &WebviewState,
+    id: &str,
+) -> Result<(), TauriumError> {
+    if let Some(webview) = app.get_webview(id) {
+        webview.hide().ok();
+        webview.eval("window.location.replace('about:blank')").ok();
+        webview.close()?;
+    }
+    cleanup_service_webview_state(state, id)?;
+    eprintln!("[Taurium] Webview '{}' removed", id);
+    Ok(())
+}
+
+/// Supprime une webview de service (hide → blank → close) et nettoie l'état associé.
+pub fn remove_service_webview(app: &AppHandle, id: &str) -> Result<(), TauriumError> {
+    let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
+    let app_handle = app.clone();
+    let id_owned = id.to_string();
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), TauriumError>>();
+
+    window.run_on_main_thread(move || {
+        let state = app_handle.state::<WebviewState>();
+        let result = remove_service_webview_inner(&app_handle, &state, &id_owned);
+        let _ = tx.send(result);
+    })?;
+
+    match rx.recv_timeout(std::time::Duration::from_secs(5)) {
+        Ok(result) => result,
+        Err(_) => Err(TauriumError::ServiceNotFound(format!(
+            "Timed out removing webview '{}' on main thread",
+            id
+        ))),
+    }
+}
+
+/// Recrée la webview d'un service (utile quand le user-agent change).
+pub fn recreate_service_webview(
+    app: &AppHandle,
+    state: &WebviewState,
+    service: &Service,
+) -> Result<(), TauriumError> {
+    let was_active = state
+        .active_id
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .as_deref()
+        == Some(service.id.as_str());
+
+    remove_service_webview(app, &service.id)?;
+    create_service_webview(app, service)?;
+
+    if was_active {
+        switch_to(app, state, &service.id)?;
+    }
+
+    Ok(())
+}
+
+/// Indique si une webview doit être recréée (user-agent modifié sur un service existant).
+pub(crate) fn service_user_agent_changed(old: &Service, new: &Service) -> bool {
+    old.id == new.id && old.user_agent != new.user_agent
+}
+
 /// Apply service changes: handle reorder/delete/add instantly.
-pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<(), TauriumError> {
+pub fn apply_service_changes(
+    app: &AppHandle,
+    state: &WebviewState,
+    new_services: Vec<Service>,
+) -> Result<(), TauriumError> {
+    let old_services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .clone();
+
     let old_ids: HashSet<String> = state
         .created_ids
         .lock()
@@ -404,36 +514,30 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
     // Remove deleted service webviews
     for id in old_ids.difference(&new_ids) {
         eprintln!("[Taurium] Removing webview: {}", id);
-        if let Some(webview) = app.get_webview(id) {
-            webview.eval("window.location.replace('about:blank')").ok();
-            webview.hide().ok();
-        }
-        state
-            .created_ids
-            .lock()
-            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
-            .retain(|i| i != id);
-        state
-            .navigated
-            .lock()
-            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
-            .remove(id);
-        state
-            .badge_counts
-            .lock()
-            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
-            .remove(id);
-        state
-            .last_activity
-            .lock()
-            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
-            .remove(id);
+        remove_service_webview(app, id)?;
     }
 
     // Create newly added service webviews on-the-fly
     for service in new_services.iter().filter(|s| !old_ids.contains(&s.id)) {
         eprintln!("[Taurium] Creating new webview on-the-fly: {}", service.id);
         create_service_webview(app, service)?;
+    }
+
+    // Recreate webviews when user-agent changed on existing services
+    for service in &new_services {
+        if !old_ids.contains(&service.id) {
+            continue;
+        }
+        let Some(old) = old_services.iter().find(|s| s.id == service.id) else {
+            continue;
+        };
+        if service_user_agent_changed(old, service) {
+            eprintln!(
+                "[Taurium] User-agent changed for {}, recreating webview",
+                service.id
+            );
+            recreate_service_webview(app, state, service)?;
+        }
     }
 
     // Update state
@@ -457,7 +561,9 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
 
     // Refresh sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
-        sidebar.eval("window.__reloadSidebar && window.__reloadSidebar()").ok();
+        sidebar
+            .eval("window.__reloadSidebar && window.__reloadSidebar()")
+            .ok();
     }
 
     Ok(())
@@ -510,7 +616,8 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
 
 #[cfg(test)]
 mod tests {
-    use super::window_location_replace_js;
+    use super::{service_user_agent_changed, window_location_replace_js};
+    use crate::config::Service;
 
     #[test]
     fn test_url_escaping_in_window_location_replace_js() {
@@ -532,5 +639,24 @@ mod tests {
                 serde_json::from_str(inner).expect("escaped URL should stay valid JSON string");
             assert_eq!(decoded, original);
         }
+    }
+
+    #[test]
+    fn test_service_user_agent_changed() {
+        let base = Service {
+            id: "svc".to_string(),
+            name: "Test".to_string(),
+            url: "https://example.com".to_string(),
+            icon: "x".to_string(),
+            user_agent: None,
+            zoom: None,
+        };
+        let with_ua = Service {
+            user_agent: Some("Custom".to_string()),
+            ..base.clone()
+        };
+        assert!(!service_user_agent_changed(&base, &base));
+        assert!(service_user_agent_changed(&base, &with_ua));
+        assert!(service_user_agent_changed(&with_ua, &base));
     }
 }

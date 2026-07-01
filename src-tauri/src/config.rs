@@ -28,10 +28,18 @@ pub struct Preferences {
     pub notifications_enabled: bool,
 }
 
-fn default_icon_size() -> u32 { 40 }
-fn default_sidebar_color() -> String { "#16213e".to_string() }
-fn default_accent_color() -> String { "#e94560".to_string() }
-fn default_notifications_enabled() -> bool { true }
+fn default_icon_size() -> u32 {
+    40
+}
+fn default_sidebar_color() -> String {
+    "#16213e".to_string()
+}
+fn default_accent_color() -> String {
+    "#e94560".to_string()
+}
+fn default_notifications_enabled() -> bool {
+    true
+}
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -238,7 +246,8 @@ mod tests {
         assert_eq!(loaded_valid[0].id, "ok");
 
         // Invalid JSON: should fail gracefully to empty list.
-        fs::write(&services_path, "{ invalid json").expect("invalid services.json should be written");
+        fs::write(&services_path, "{ invalid json")
+            .expect("invalid services.json should be written");
         let loaded_invalid = load_services(&app_data_dir);
         assert!(loaded_invalid.is_empty());
     }
@@ -285,4 +294,3 @@ mod tests {
         assert!(!full.notifications_enabled);
     }
 }
-
