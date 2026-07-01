@@ -4,6 +4,7 @@ let services = [];
 let pendingServiceId = null;
 let overlayHideTimer = null;
 let sidebarExpanded = false;
+let filterQuery = "";
 
 // Per-service load state for the status dot: "idle" | "loading" | "loaded"
 const serviceStates = {};
@@ -54,7 +55,12 @@ function renderSidebar(services) {
   }
 
   let lastGroup = null;
+  let renderedCount = 0;
   services.forEach((service, index) => {
+    // Skip services that don't match the active quick-switcher query
+    if (!matchesFilter(service)) return;
+    renderedCount++;
+
     // Emit a group header whenever the group changes (order is preserved as stored)
     const group = service.group || null;
     if (group && group !== lastGroup) {
@@ -105,7 +111,46 @@ function renderSidebar(services) {
     serviceList.appendChild(btn);
   });
 
+  // Show a hint when the query filters everything out
+  if (filterQuery && renderedCount === 0 && services.length > 0) {
+    const noMatch = document.createElement("div");
+    noMatch.className = "no-match";
+    noMatch.textContent = "Aucun service";
+    serviceList.appendChild(noMatch);
+  }
+
   updateActiveState();
+}
+
+// Quick-switcher match: name or group contains the query (case-insensitive)
+function matchesFilter(service) {
+  if (!filterQuery) return true;
+  const hay = (service.name + " " + (service.group || "")).toLowerCase();
+  return hay.includes(filterQuery);
+}
+
+// First service currently matching the query (for Enter-to-switch)
+function firstFilterMatch() {
+  return services.find((s) => matchesFilter(s)) || null;
+}
+
+function clearFilter() {
+  filterQuery = "";
+  const input = document.getElementById("sidebar-search");
+  if (input) input.value = "";
+  renderSidebar(services);
+}
+
+// Ctrl+K: expand the sidebar (if needed) and focus the quick switcher
+async function openQuickSwitcher() {
+  if (!sidebarExpanded) {
+    await setSidebarExpanded(true);
+  }
+  const input = document.getElementById("sidebar-search");
+  if (input) {
+    input.focus();
+    input.select();
+  }
 }
 
 async function init() {
@@ -136,6 +181,30 @@ async function init() {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         setSidebarExpanded(!sidebarExpanded);
+      }
+    });
+
+    // Quick-switcher search field
+    const searchInput = document.getElementById("sidebar-search");
+    searchInput.addEventListener("input", () => {
+      filterQuery = searchInput.value.trim().toLowerCase();
+      renderSidebar(services);
+    });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const match = firstFilterMatch();
+        if (match) {
+          searchInput.blur();
+          switchService(match.id);
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        if (filterQuery) {
+          clearFilter();
+        } else {
+          searchInput.blur();
+        }
       }
     });
 
@@ -263,6 +332,10 @@ async function switchService(id) {
     await invoke("switch_service", { id });
     activeId = id;
     settingsOpen = false;
+    // Clear any active quick-switcher filter so the full list returns
+    if (filterQuery) {
+      clearFilter();
+    }
     updateActiveState();
     overlayHideTimer = setTimeout(hideLoadingOverlay, OVERLAY_FALLBACK_MS);
   } catch (err) {
@@ -311,6 +384,13 @@ function handleKeyboard(e) {
   if (e.key === "b" || e.key === "B") {
     e.preventDefault();
     setSidebarExpanded(!sidebarExpanded);
+    return;
+  }
+
+  // Ctrl+K = open quick switcher (expand + focus search)
+  if (e.key === "k" || e.key === "K") {
+    e.preventDefault();
+    openQuickSwitcher();
     return;
   }
 
