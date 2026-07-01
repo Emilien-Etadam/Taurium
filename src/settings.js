@@ -5,6 +5,8 @@ let dragSrcIndex = -1;
 let iconDataUrl = ""; // stores base64 data URL for image icon
 let savePrefsFeedbackTimer = null;
 
+import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
+
 function nanoid(size = 10) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
   let id = '';
@@ -32,6 +34,9 @@ async function init() {
     services = await invoke("get_services");
     renderServices();
 
+    const loadInfo = await invoke("get_services_load_info");
+    showServicesLoadInfo(loadInfo);
+
     // Load preferences
     const prefs = await invoke("get_preferences");
     document.getElementById("pref-icon-size").value = prefs.icon_size;
@@ -40,7 +45,8 @@ async function init() {
     document.getElementById("pref-accent-color").value = prefs.accent_color;
     document.getElementById("pref-notifications").checked = prefs.notifications_enabled;
   } catch (err) {
-    document.body.innerHTML = "<pre style='color:red;padding:20px'>Error: " + err + "</pre>";
+    showToast("Could not load settings: " + formatInvokeError(err), { durationMs: 10000 });
+    console.error("Settings init error:", err);
   }
 
   document.getElementById("add-btn").addEventListener("click", showAddForm);
@@ -366,9 +372,13 @@ async function persistServices() {
   if (!invoke) return;
   try {
     await invoke("save_services_cmd", { services });
-    await invoke("apply_services");
+    const applyResult = await invoke("apply_services");
+    if (applyResult && applyResult.filtered_url_count > 0) {
+      showServicesLoadInfo(applyResult);
+    }
   } catch (err) {
-    alert("Error saving: " + err);
+    showToast("Could not save services: " + formatInvokeError(err));
+    console.error("Save services error:", err);
   }
 }
 
@@ -399,7 +409,8 @@ async function savePreferences() {
       savePrefsFeedbackTimer = null;
     }, 1000);
   } catch (err) {
-    alert("Error saving preferences: " + err);
+    showToast("Could not save preferences: " + formatInvokeError(err));
+    console.error("Save preferences error:", err);
     savePrefsBtn.textContent = "Save Settings";
     savePrefsBtn.disabled = false;
   }
