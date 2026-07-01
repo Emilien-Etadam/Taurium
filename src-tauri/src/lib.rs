@@ -128,7 +128,11 @@ fn get_service_url(
     Ok(services.iter().find(|s| s.id == id).map(|s| s.url.clone()))
 }
 
-#[tauri::command]
+// `async` here forces the command to run off the main thread. Adding/removing
+// services calls `add_child` (webview creation) via run_on_main_thread; if this
+// command ran on the main thread (the default for sync commands), that call
+// would re-enter WebView2's IPC and deadlock on Windows (see setup() note).
+#[tauri::command(async)]
 fn apply_services(
     app: tauri::AppHandle,
     state: tauri::State<WebviewState>,
