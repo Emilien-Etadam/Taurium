@@ -13,6 +13,7 @@ const serviceStates = {};
 const OVERLAY_FALLBACK_MS = 10000;
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
+import { checkForUpdate } from "./updater.js";
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -235,6 +236,9 @@ async function init() {
     } else if (services.length > 0) {
       await switchService(services[0].id);
     }
+
+    // Non-blocking check for app updates (notify only; install is manual via Settings)
+    checkUpdatesOnStartup();
   } catch (err) {
     showToast("Init error: " + formatInvokeError(err), { durationMs: 10000 });
     console.error("Init error:", err);
@@ -274,6 +278,35 @@ async function syncSidebarWidth() {
   } catch (err) {
     console.error("Sidebar width error:", err);
   }
+}
+
+// Silent update check on startup. If a newer version is available, surface a
+// discreet marker on the settings gear + a toast; the actual install is done
+// manually from the Settings page.
+async function checkUpdatesOnStartup() {
+  try {
+    const update = await checkForUpdate();
+    if (!update) return;
+    markUpdateAvailable();
+    showToast(
+      "Mise à jour " + update.version + " disponible — Réglages ▸ Mises à jour",
+      { variant: "info", durationMs: 12000 },
+    );
+  } catch (err) {
+    // Never disrupt startup because of an update check (offline, no manifest, etc.)
+    console.error("Update check failed:", err);
+  }
+}
+
+function markUpdateAvailable() {
+  const btn = document.getElementById("settings-btn");
+  if (!btn) return;
+  const wrap = btn.querySelector(".glyph-wrap");
+  if (!wrap || wrap.querySelector(".update-dot")) return;
+  const dot = document.createElement("span");
+  dot.className = "update-dot";
+  dot.title = "Mise à jour disponible";
+  wrap.appendChild(dot);
 }
 
 // Called from settings webview after prefs change (via Rust eval)

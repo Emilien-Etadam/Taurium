@@ -8,6 +8,10 @@ let savePrefsFeedbackTimer = null;
 let loadedPrefs = {}; // full prefs from backend, so save preserves fields not shown here
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
+import { checkForUpdate, installAndRelaunch } from "./updater.js";
+import { getVersion } from "@tauri-apps/api/app";
+
+let pendingUpdate = null;
 
 function nanoid(size = 10) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
@@ -74,6 +78,11 @@ async function init() {
     showToast("Could not load settings: " + formatInvokeError(err), { durationMs: 10000 });
     console.error("Settings init error:", err);
   }
+
+  // Updates section
+  initUpdates();
+  document.getElementById("check-update-btn").addEventListener("click", () => runUpdateCheck(false));
+  document.getElementById("install-update-btn").addEventListener("click", installUpdate);
 
   document.getElementById("add-btn").addEventListener("click", showAddForm);
   document.getElementById("catalog-btn").addEventListener("click", showCatalog);
@@ -503,6 +512,60 @@ async function addFromCatalog(recipe) {
 }
 
 // --- Preferences ---
+async function initUpdates() {
+  const versionEl = document.getElementById("current-version");
+  try {
+    versionEl.textContent = "v" + (await getVersion());
+  } catch (err) {
+    console.error("getVersion failed:", err);
+  }
+  // Auto-check silently when the settings page opens
+  runUpdateCheck(true);
+}
+
+async function runUpdateCheck(silent) {
+  const statusEl = document.getElementById("update-status");
+  const installBtn = document.getElementById("install-update-btn");
+  const checkBtn = document.getElementById("check-update-btn");
+  checkBtn.disabled = true;
+  if (!silent) statusEl.textContent = "Vérification…";
+  try {
+    const update = await checkForUpdate();
+    if (update) {
+      pendingUpdate = update;
+      statusEl.textContent = "Mise à jour disponible : v" + update.version;
+      installBtn.classList.remove("hidden");
+    } else {
+      pendingUpdate = null;
+      installBtn.classList.add("hidden");
+      if (!silent) statusEl.textContent = "Vous êtes à jour.";
+    }
+  } catch (err) {
+    if (!silent) statusEl.textContent = "Échec de la vérification : " + formatInvokeError(err);
+    console.error("Update check error:", err);
+  } finally {
+    checkBtn.disabled = false;
+  }
+}
+
+async function installUpdate() {
+  if (!pendingUpdate) return;
+  const statusEl = document.getElementById("update-status");
+  const installBtn = document.getElementById("install-update-btn");
+  installBtn.disabled = true;
+  try {
+    statusEl.textContent = "Téléchargement…";
+    await installAndRelaunch(pendingUpdate, (event) => {
+      if (event.event === "Finished") statusEl.textContent = "Installation…";
+    });
+    // The app relaunches on success; nothing else to do here.
+  } catch (err) {
+    statusEl.textContent = "Échec de l'installation : " + formatInvokeError(err);
+    installBtn.disabled = false;
+    console.error("Update install error:", err);
+  }
+}
+
 async function savePreferences() {
   const invoke = getInvoke();
   if (!invoke) return;

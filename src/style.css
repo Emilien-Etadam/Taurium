@@ -285,6 +285,19 @@ body {
   color: var(--text-dim);
 }
 
+/* "Update available" marker on the settings gear */
+.update-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2ecc71;
+  border: 2px solid var(--sidebar-color);
+  box-sizing: content-box;
+}
+
 /* Empty state */
 .empty-state {
   display: flex;

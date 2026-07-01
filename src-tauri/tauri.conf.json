@@ -19,6 +19,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -26,5 +27,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REMPLACER_PAR_LA_CLE_PUBLIQUE_TAURI",
+      "endpoints": [
+        "https://github.com/Emilien-Etadam/Taurium/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

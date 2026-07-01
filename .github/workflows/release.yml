@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Tag de version à publier (ex: v0.2.0). Le tag est créé sur la branche sélectionnée s'il n'existe pas."
+        description: "Tag de version à publier (ex: v0.3.0). Le tag est créé sur la branche sélectionnée s'il n'existe pas."
         required: true
         type: string
 
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     strategy:
       fail-fast: false
       matrix:
@@ -25,7 +25,7 @@ jobs:
           - os: ubuntu-22.04
             label: Linux
 
-    name: Build (${{ matrix.label }})
+    name: Release (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -39,9 +39,6 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      # No rust-cache here on purpose: releases are infrequent and a clean,
-      # from-scratch build avoids stale/partial-cache failures (E0463).
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -57,57 +54,31 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build Tauri app
-        run: npx tauri build
-
-      - name: Upload Windows artifacts
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+      # tauri-action builds the app, signs the updater artifacts (using the
+      # signing secrets below), creates/updates the GitHub release and uploads
+      # the installers + the updater manifest (latest.json).
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Required to sign the updater artifacts. Generate with:
+          #   npm run tauri signer generate -- -w taurium.key
+          # then add the private key + password as repository secrets.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          name: windows-installers
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
-
-      - name: Upload Linux artifacts
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-installers
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-
-  release:
-    needs: build
-    # Run after both build legs finish; publish whatever artifacts exist even
-    # if one platform failed (don't let a single-OS failure block the release).
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: List artifacts
-        run: find artifacts -type f
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          # inputs.version when triggered manually, otherwise the pushed tag
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-          target_commitish: ${{ github.sha }}
-          name: "Taurium ${{ github.event.inputs.version || github.ref_name }}"
-          body: "Download the installer for your platform below."
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/*.msi
-            artifacts/**/*.deb
-            artifacts/**/*.AppImage
+          # inputs.version on manual runs, otherwise the pushed tag.
+          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          releaseName: "Taurium ${{ github.event.inputs.version || github.ref_name }}"
+          releaseBody: "Téléchargez l'installateur pour votre plateforme ci-dessous."
+          # Draft so you can review before publishing. NOTE: the updater endpoint
+          # (releases/latest/download/latest.json) only resolves once the release
+          # is PUBLISHED, so remember to publish it for auto-updates to work.
+          releaseDraft: true
+          prerelease: false
+          # Generate/attach the updater manifest (latest.json). Default is true
+          # when the updater is configured; set explicitly for clarity.
+          includeUpdaterJson: true
