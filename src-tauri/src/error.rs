@@ -18,6 +18,10 @@ pub enum TauriumError {
     Tauri(#[from] tauri::Error),
     #[error(transparent)]
     Serialization(#[from] serde_json::Error),
+    #[error(transparent)]
+    Config(#[from] crate::config::ConfigError),
+    #[error(transparent)]
+    LoadServices(#[from] crate::config::LoadServicesError),
 }
 
 impl Serialize for TauriumError {
@@ -36,6 +40,8 @@ impl Serialize for TauriumError {
                 TauriumError::Io(_) => "Io",
                 TauriumError::Tauri(_) => "Tauri",
                 TauriumError::Serialization(_) => "Serialization",
+                TauriumError::Config(_) => "Config",
+                TauriumError::LoadServices(_) => "LoadServices",
             },
         )?;
         state.serialize_field("message", &self.to_string())?;

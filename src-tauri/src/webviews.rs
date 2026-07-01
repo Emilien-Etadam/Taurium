@@ -7,11 +7,84 @@ use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::config::{extract_badge_count, load_preferences, Service};
+use crate::config::{extract_badge_count, load_preferences, Service, ServicesLoadInfo};
 use crate::error::TauriumError;
 
 pub const SIDEBAR_WIDTH: f64 = 48.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
+
+// Notification body templates (English)
+const NOTIFY_SINGLE_FROM: &str = "1 notification from {service}";
+const NOTIFY_MULTIPLE_FROM: &str = "{count} notifications from {service}";
+const NOTIFY_NEW_SINGLE: &str = "New notification from {service}";
+const NOTIFY_NEW_MULTIPLE: &str = "{count} new notifications from {service}";
+
+/// Diff existing webview ids against the new service list.
+/// Returns `(to_remove, to_add)`; unchanged ids are implicit (intersection).
+pub(crate) fn compute_service_changes(
+    old_ids: &HashSet<String>,
+    new_services: &[Service],
+) -> (Vec<String>, Vec<Service>) {
+    let new_ids: HashSet<String> = new_services.iter().map(|s| s.id.clone()).collect();
+    let to_remove: Vec<String> = old_ids.difference(&new_ids).cloned().collect();
+    let to_add: Vec<Service> = new_services
+        .iter()
+        .filter(|s| !old_ids.contains(&s.id))
+        .cloned()
+        .collect();
+    (to_remove, to_add)
+}
+
+/// Decide whether to notify and return the notification body, if any.
+pub(crate) fn notification_body_for_badge_change(
+    service_name: &str,
+    count: u32,
+    prev_count: u32,
+    notifications_enabled: bool,
+) -> Option<String> {
+    if !notifications_enabled || count <= prev_count || count == 0 {
+        return None;
+    }
+    let body = if prev_count == 0 {
+        if count == 1 {
+            NOTIFY_SINGLE_FROM.replace("{service}", service_name)
+        } else {
+            NOTIFY_MULTIPLE_FROM
+                .replace("{count}", &count.to_string())
+                .replace("{service}", service_name)
+        }
+    } else {
+        let new_msgs = count - prev_count;
+        if new_msgs == 1 {
+            NOTIFY_NEW_SINGLE.replace("{service}", service_name)
+        } else {
+            NOTIFY_NEW_MULTIPLE
+                .replace("{count}", &new_msgs.to_string())
+                .replace("{service}", service_name)
+        }
+    };
+    Some(body)
+}
+
+/// Select navigated webview ids that exceeded the inactivity threshold (excluding the active one).
+pub(crate) fn select_webviews_to_hibernate(
+    navigated_ids: &[String],
+    active_id: Option<&str>,
+    last_activity: &HashMap<String, Instant>,
+    now: Instant,
+    hibernation_secs: u64,
+) -> Vec<String> {
+    navigated_ids
+        .iter()
+        .filter(|id| active_id != Some(id.as_str()))
+        .filter(|id| {
+            last_activity
+                .get(*id)
+                .is_some_and(|last| now.duration_since(*last).as_secs() > hibernation_secs)
+        })
+        .cloned()
+        .collect()
+}
 
 pub struct WebviewState {
     pub created_ids: Mutex<Vec<String>>,
@@ -24,6 +97,8 @@ pub struct WebviewState {
     pub last_activity: Mutex<HashMap<String, Instant>>,
     /// Badge counts per service id
     pub badge_counts: Mutex<HashMap<String, u32>>,
+    /// Warnings/errors from the initial services.json load (read-only after setup).
+    pub services_load_info: ServicesLoadInfo,
 }
 
 fn is_meaningful_page_url(url: &str) -> bool {
@@ -76,22 +151,12 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Send notification if badge count increased
     let prefs = load_preferences(&state.app_data_dir);
-    let should_notify = prefs.notifications_enabled && count > prev_count;
-    if should_notify && count > 0 {
-        let body = if prev_count == 0 {
-            if count == 1 {
-                format!("1 notification from {}", service_name)
-            } else {
-                format!("{} notifications from {}", count, service_name)
-            }
-        } else {
-            let new_msgs = count - prev_count;
-            if new_msgs == 1 {
-                format!("New notification from {}", service_name)
-            } else {
-                format!("{} new notifications from {}", new_msgs, service_name)
-            }
-        };
+    if let Some(body) = notification_body_for_badge_change(
+        service_name,
+        count,
+        prev_count,
+        prefs.notifications_enabled,
+    ) {
         eprintln!(
             "[Taurium] Sending notification: {} - {}",
             service_name, body
@@ -134,6 +199,27 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     if let Some(wv) = app.get_webview(service_id) {
         apply_service_body_zoom(&wv, zoom);
     }
+}
+
+/// Reload a service webview by navigating it back to its configured URL.
+pub fn reload_service_webview(
+    app: &AppHandle,
+    state: &WebviewState,
+    id: &str,
+) -> Result<(), TauriumError> {
+    eprintln!("[Taurium] Reloading service: {}", id);
+    let services = state
+        .services
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+    if let Some(service) = services.iter().find(|s| s.id == id) {
+        if let Some(webview) = app.get_webview(id) {
+            let url = service.url.clone();
+            let js = window_location_replace_js(&url);
+            webview.eval(&js)?;
+        }
+    }
+    Ok(())
 }
 
 fn window_content_size(window: &tauri::Window) -> Result<(f64, f64), TauriumError> {
@@ -381,14 +467,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
         Some(w) => w,
         None => return,
     };
-    let inner_size = match window.inner_size() {
-        Ok(s) => s,
+    let (width, height) = match window_content_size(&window) {
+        Ok(size) => size,
         Err(_) => return,
     };
-    let scale = window.scale_factor().unwrap_or(1.0);
-
-    let width = (inner_size.width as f64 / scale) - SIDEBAR_WIDTH;
-    let height = inner_size.height as f64 / scale;
 
     // Resize sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
@@ -449,10 +531,11 @@ pub fn apply_service_changes(
         .iter()
         .cloned()
         .collect();
+    let (to_remove, to_add) = compute_service_changes(&old_ids, &new_services);
     let new_ids: HashSet<String> = new_services.iter().map(|s| s.id.clone()).collect();
 
     // Remove deleted service webviews
-    for id in old_ids.difference(&new_ids) {
+    for id in &to_remove {
         eprintln!("[Taurium] Removing webview: {}", id);
         if let Some(webview) = app.get_webview(id) {
             webview.eval("window.location.replace('about:blank')").ok();
@@ -481,7 +564,7 @@ pub fn apply_service_changes(
     }
 
     // Create newly added service webviews on-the-fly
-    for service in new_services.iter().filter(|s| !old_ids.contains(&s.id)) {
+    for service in &to_add {
         eprintln!("[Taurium] Creating new webview on-the-fly: {}", service.id);
         create_service_webview(app, service)?;
     }
@@ -540,35 +623,282 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
     };
     let now = Instant::now();
 
-    let ids: Vec<String> = navigated.iter().cloned().collect();
-    for id in ids {
-        // Don't hibernate the active webview
-        if active.as_deref() == Some(id.as_str()) {
-            continue;
-        }
-
-        if let Some(last) = last_activity.get(&id) {
-            if now.duration_since(*last).as_secs() > HIBERNATION_SECS {
-                if let Some(webview) = app.get_webview(&id) {
-                    eprintln!("[Taurium] Hibernating webview: {}", id);
-                    webview.eval("window.location.replace('about:blank')").ok();
-                    navigated.remove(&id);
-                    last_activity.remove(&id);
-                }
-            }
+    let navigated_ids: Vec<String> = navigated.iter().cloned().collect();
+    let to_hibernate = select_webviews_to_hibernate(
+        &navigated_ids,
+        active.as_deref(),
+        &last_activity,
+        now,
+        HIBERNATION_SECS,
+    );
+    for id in to_hibernate {
+        if let Some(webview) = app.get_webview(&id) {
+            eprintln!("[Taurium] Hibernating webview: {}", id);
+            webview.eval("window.location.replace('about:blank')").ok();
+            navigated.remove(&id);
+            last_activity.remove(&id);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_meaningful_page_url, window_location_replace_js};
+    use std::collections::{HashMap, HashSet};
+    use std::time::{Duration, Instant};
+
+    use super::{
+        compute_service_changes, is_meaningful_page_url, notification_body_for_badge_change,
+        select_webviews_to_hibernate, window_location_replace_js,
+    };
+    use crate::config::Service;
 
     #[test]
     fn test_is_meaningful_page_url() {
         assert!(!is_meaningful_page_url(""));
         assert!(!is_meaningful_page_url("about:blank"));
         assert!(is_meaningful_page_url("https://example.com"));
+    }
+
+    fn sample_service(id: &str) -> Service {
+        Service {
+            id: id.to_string(),
+            name: format!("Service {id}"),
+            url: format!("https://{id}.example.com"),
+            icon: "icon.png".to_string(),
+            user_agent: None,
+            zoom: None,
+        }
+    }
+
+    fn old_ids(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|id| (*id).to_string()).collect()
+    }
+
+    fn assert_same_ids(actual: &[String], expected: &[&str]) {
+        let mut actual_sorted = actual.to_vec();
+        actual_sorted.sort();
+        let mut expected_sorted: Vec<String> = expected.iter().map(|s| (*s).to_string()).collect();
+        expected_sorted.sort();
+        assert_eq!(actual_sorted, expected_sorted);
+    }
+
+    #[test]
+    fn compute_service_changes_empty_old_adds_all() {
+        let new = vec![sample_service("a"), sample_service("b")];
+        let (to_remove, to_add) = compute_service_changes(&HashSet::new(), &new);
+        assert!(to_remove.is_empty());
+        assert_eq!(to_add.len(), 2);
+        assert_eq!(to_add[0].id, "a");
+        assert_eq!(to_add[1].id, "b");
+    }
+
+    #[test]
+    fn compute_service_changes_unchanged_is_empty() {
+        let new = vec![sample_service("a"), sample_service("b")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b"]), &new);
+        assert!(to_remove.is_empty());
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn compute_service_changes_reorder_only_is_empty() {
+        let new = vec![sample_service("b"), sample_service("a")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b"]), &new);
+        assert!(to_remove.is_empty());
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn compute_service_changes_detects_removals() {
+        let new = vec![sample_service("a")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b", "c"]), &new);
+        assert_same_ids(&to_remove, &["b", "c"]);
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn compute_service_changes_detects_additions_preserving_order() {
+        let new = vec![
+            sample_service("a"),
+            sample_service("b"),
+            sample_service("c"),
+        ];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a"]), &new);
+        assert!(to_remove.is_empty());
+        assert_eq!(to_add.len(), 2);
+        assert_eq!(to_add[0].id, "b");
+        assert_eq!(to_add[1].id, "c");
+    }
+
+    #[test]
+    fn compute_service_changes_detects_simultaneous_add_and_remove() {
+        let new = vec![sample_service("b"), sample_service("d")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b", "c"]), &new);
+        assert_same_ids(&to_remove, &["a", "c"]);
+        assert_eq!(to_add.len(), 1);
+        assert_eq!(to_add[0].id, "d");
+    }
+
+    #[test]
+    fn compute_service_changes_empty_new_removes_all() {
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b"]), &[]);
+        assert_same_ids(&to_remove, &["a", "b"]);
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn notification_body_disabled_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 5, 0, false),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_equal_count_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 3, 3, true),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_decreased_count_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 2, 5, true),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_zero_count_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 0, 0, true),
+            None
+        );
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 0, 3, true),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_first_single_message() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 1, 0, true),
+            Some("1 notification from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn notification_body_first_multiple_messages() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 5, 0, true),
+            Some("5 notifications from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn notification_body_increment_single_new_message() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 4, 3, true),
+            Some("New notification from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn notification_body_increment_multiple_new_messages() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 8, 3, true),
+            Some("5 new notifications from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_skips_active() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("active".to_string(), now - Duration::from_secs(900))]);
+        let selected = select_webviews_to_hibernate(
+            &["active".to_string()],
+            Some("active"),
+            &last_activity,
+            now,
+            600,
+        );
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_selects_idle_navigated() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("idle".to_string(), now - Duration::from_secs(601))]);
+        let selected =
+            select_webviews_to_hibernate(&["idle".to_string()], None, &last_activity, now, 600);
+        assert_eq!(selected, vec!["idle".to_string()]);
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_respects_threshold_boundary() {
+        let now = Instant::now();
+        let last_activity =
+            HashMap::from([("borderline".to_string(), now - Duration::from_secs(600))]);
+        let selected = select_webviews_to_hibernate(
+            &["borderline".to_string()],
+            None,
+            &last_activity,
+            now,
+            600,
+        );
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_skips_without_activity_entry() {
+        let now = Instant::now();
+        let selected =
+            select_webviews_to_hibernate(&["orphan".to_string()], None, &HashMap::new(), now, 600);
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_skips_not_yet_idle() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("recent".to_string(), now - Duration::from_secs(30))]);
+        let selected =
+            select_webviews_to_hibernate(&["recent".to_string()], None, &last_activity, now, 600);
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_multiple_candidates() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([
+            ("idle-a".to_string(), now - Duration::from_secs(700)),
+            ("active".to_string(), now - Duration::from_secs(900)),
+            ("idle-b".to_string(), now - Duration::from_secs(800)),
+            ("recent".to_string(), now - Duration::from_secs(10)),
+        ]);
+        let selected = select_webviews_to_hibernate(
+            &[
+                "idle-a".to_string(),
+                "active".to_string(),
+                "idle-b".to_string(),
+                "recent".to_string(),
+            ],
+            Some("active"),
+            &last_activity,
+            now,
+            600,
+        );
+        assert_eq!(selected, vec!["idle-a".to_string(), "idle-b".to_string()]);
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_ignores_non_navigated() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("hidden".to_string(), now - Duration::from_secs(900))]);
+        let selected = select_webviews_to_hibernate(&[], None, &last_activity, now, 600);
+        assert!(selected.is_empty());
     }
 
     #[test]
