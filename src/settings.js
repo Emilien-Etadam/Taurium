@@ -17,6 +17,19 @@ function nanoid(size = 10) {
   return id;
 }
 
+// Populate the group autocomplete from groups already used by other services
+function refreshGroupSuggestions() {
+  const datalist = document.getElementById("group-suggestions");
+  if (!datalist) return;
+  const groups = [...new Set(services.map((s) => s.group).filter(Boolean))].sort();
+  datalist.innerHTML = "";
+  groups.forEach((g) => {
+    const opt = document.createElement("option");
+    opt.value = g;
+    datalist.appendChild(opt);
+  });
+}
+
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
@@ -257,6 +270,8 @@ function showAddForm() {
   document.getElementById("form-title").textContent = "Add Service";
   document.getElementById("input-name").value = "";
   document.getElementById("input-url").value = "";
+  document.getElementById("input-group").value = "";
+  refreshGroupSuggestions();
   document.getElementById("input-icon").value = "";
   document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
   document.getElementById("input-user-agent").value = "";
@@ -274,6 +289,8 @@ function showEditForm(index) {
   document.getElementById("form-title").textContent = "Edit Service";
   document.getElementById("input-name").value = s.name;
   document.getElementById("input-url").value = s.url;
+  document.getElementById("input-group").value = s.group ?? "";
+  refreshGroupSuggestions();
   document.getElementById("input-user-agent").value = s.user_agent ?? "";
   const z = s.zoom != null && Number.isFinite(s.zoom) ? s.zoom : 1;
   document.getElementById("input-zoom").value = String(z);
@@ -325,6 +342,8 @@ async function saveForm() {
   clearErrors();
   const name = document.getElementById("input-name").value.trim();
   const url = document.getElementById("input-url").value.trim();
+  const groupRaw = document.getElementById("input-group").value.trim();
+  const group = groupRaw.length > 0 ? groupRaw : null;
   const userAgentRaw = document.getElementById("input-user-agent").value.trim();
   const user_agent = userAgentRaw.length > 0 ? userAgentRaw : null;
   const zoomRaw = Number.parseFloat(document.getElementById("input-zoom").value);
@@ -378,7 +397,7 @@ async function saveForm() {
   }
 
   if (editingIndex === -1) {
-    services.push({ id, name, url, icon, user_agent, zoom });
+    services.push({ id, name, url, icon, user_agent, zoom, group });
   } else {
     services[editingIndex] = {
       ...services[editingIndex],
@@ -388,6 +407,7 @@ async function saveForm() {
       icon,
       user_agent,
       zoom,
+      group,
     };
   }
 
