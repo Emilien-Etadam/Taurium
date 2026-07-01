@@ -157,6 +157,15 @@ pub fn get_services_path(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("services.json")
 }
 
+/// Only `http`/`https` service URLs are accepted; everything else
+/// (`javascript:`, `file:`, `ftp:`, garbage…) is rejected.
+fn is_valid_service_url(raw: &str) -> bool {
+    matches!(
+        raw.parse::<url::Url>(),
+        Ok(u) if matches!(u.scheme(), "http" | "https")
+    )
+}
+
 /// Services créés au premier lancement (fichier absent).
 fn default_services() -> Vec<Service> {
     vec![
@@ -208,13 +217,6 @@ fn backup_corrupted_services_file(path: &Path) -> Result<PathBuf, LoadServicesEr
     Ok(backup_path)
 }
 
-fn is_allowed_service_url(url_str: &str) -> bool {
-    url_str
-        .parse::<url::Url>()
-        .ok()
-        .is_some_and(|parsed| matches!(parsed.scheme(), "http" | "https"))
-}
-
 fn normalize_service(mut service: Service) -> Service {
     if service.user_agent.as_deref() == Some("") {
         service.user_agent = None;
@@ -231,7 +233,7 @@ fn sanitize_services(raw_services: Vec<Service>) -> (Vec<Service>, usize) {
     let total = raw_services.len();
     let services: Vec<Service> = raw_services
         .into_iter()
-        .filter(|service| is_allowed_service_url(&service.url))
+        .filter(|service| is_valid_service_url(&service.url))
         .map(normalize_service)
         .collect();
     let filtered_url_count = total.saturating_sub(services.len());
@@ -306,6 +308,9 @@ pub fn save_state(app_data_dir: &Path, state: &AppState) -> Result<(), ConfigErr
     Ok(())
 }
 
+/// Upper bound for badge counts extracted from page titles (years, IDs, etc. are ignored).
+const MAX_BADGE_COUNT: u32 = 999;
+
 pub fn extract_badge_count(title: &str) -> u32 {
     // Match patterns like "(3)", "(12)", "[5]" in page titles
     static RE_PAREN: OnceLock<regex_lite::Regex> = OnceLock::new();
@@ -320,14 +325,14 @@ pub fn extract_badge_count(title: &str) -> u32 {
 
     if let Some(caps) = re_paren.captures(title) {
         if let Ok(n) = caps[1].parse::<u32>() {
-            if n > 0 {
+            if n > 0 && n <= MAX_BADGE_COUNT {
                 return n;
             }
         }
     }
     if let Some(caps) = re_bracket.captures(title) {
         if let Ok(n) = caps[1].parse::<u32>() {
-            if n > 0 {
+            if n > 0 && n <= MAX_BADGE_COUNT {
                 return n;
             }
         }
@@ -351,6 +356,9 @@ mod tests {
         assert_eq!(extract_badge_count(""), 0);
         assert_eq!(extract_badge_count("about:blank"), 0);
         assert_eq!(extract_badge_count("(999) many"), 999);
+        assert_eq!(extract_badge_count("(2025) Rapport"), 0);
+        assert_eq!(extract_badge_count("(1500)"), 0);
+        assert_eq!(extract_badge_count("(99)"), 99);
     }
 
     #[test]
@@ -386,12 +394,14 @@ mod tests {
         let valid_json = r#"[
             {"id":"ok","name":"Ok","url":"https://example.com","icon":"ok.svg"},
             {"id":"bad-url","name":"Bad","url":"not-a-url","icon":"bad.svg"},
-            {"id":"ftp","name":"FTP","url":"ftp://example.com","icon":"ftp.svg"}
+            {"id":"ftp","name":"FTP","url":"ftp://example.com","icon":"ftp.svg"},
+            {"id":"js-scheme","name":"Js","url":"javascript:alert(1)","icon":"x"},
+            {"id":"file-scheme","name":"File","url":"file:///etc/passwd","icon":"x"}
         ]"#;
         fs::write(&services_path, valid_json).expect("valid services.json should be written");
         let loaded_valid = load_services(&app_data_dir).expect("valid services.json should load");
         assert!(!loaded_valid.created_defaults);
-        assert_eq!(loaded_valid.filtered_url_count, 2);
+        assert_eq!(loaded_valid.filtered_url_count, 4);
         assert_eq!(loaded_valid.services.len(), 1);
         assert_eq!(loaded_valid.services[0].id, "ok");
 

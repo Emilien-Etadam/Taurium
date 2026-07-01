@@ -19,6 +19,15 @@ function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
 
+// An icon is either an emoji or an imported image (data:image...).
+// This rejects arbitrary text/HTML typed into the icon field.
+function isEmojiIcon(s) {
+  if (!s) return false;
+  if ([...s].length > 8) return false; // one emoji + modifiers stays short
+  if (/[<>A-Za-z0-9]/.test(s)) return false; // no HTML/ASCII text
+  return /\p{Extended_Pictographic}/u.test(s);
+}
+
 async function init() {
   let invoke = getInvoke();
   if (!invoke) {
@@ -82,17 +91,9 @@ function renderServices() {
     item.draggable = true;
     item.dataset.index = index;
 
-    // Render icon (emoji or image)
-    let iconHtml;
-    if (service.icon.startsWith("data:image")) {
-      iconHtml = `<img src="${service.icon}" />`;
-    } else {
-      iconHtml = service.icon;
-    }
-
     item.innerHTML = `
       <span class="drag-handle" title="Drag to reorder">&#9776;</span>
-      <span class="icon">${iconHtml}</span>
+      <span class="icon"></span>
       <div class="info">
         <div class="name">${escapeHtml(service.name)}</div>
         <div class="url">${escapeHtml(service.url)}</div>
@@ -102,6 +103,17 @@ function renderServices() {
         <button class="btn-icon delete" title="Delete">&#10005;</button>
       </div>
     `;
+
+    // Render icon safely: image via <img src>, otherwise emoji as text.
+    // Never inject the icon through innerHTML (avoids HTML injection).
+    const iconSpan = item.querySelector(".icon");
+    if (service.icon.startsWith("data:image")) {
+      const img = document.createElement("img");
+      img.src = service.icon;
+      iconSpan.appendChild(img);
+    } else {
+      iconSpan.textContent = service.icon;
+    }
     item.querySelector(".edit").addEventListener("click", (e) => {
       e.stopPropagation();
       showEditForm(index);
@@ -321,17 +333,27 @@ async function saveForm() {
     valid = false;
   }
 
-  // Validate URL
+  // Validate URL (http/https only)
   if (!url) {
     showError("input-url", "URL is required");
     valid = false;
   } else {
+    let parsed = null;
     try {
-      new URL(url);
+      parsed = new URL(url);
     } catch {
-      showError("input-url", "Invalid URL (must start with https://)");
+      parsed = null;
+    }
+    if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+      showError("input-url", "URL must start with http:// or https://");
       valid = false;
     }
+  }
+
+  // Validate icon: emoji only (images go through the file picker)
+  if (!iconDataUrl && emojiIcon && !isEmojiIcon(emojiIcon)) {
+    showError("input-icon", "Icon must be a single emoji (or import an image)");
+    valid = false;
   }
 
   if (!valid) return;

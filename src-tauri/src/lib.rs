@@ -95,19 +95,7 @@ fn reload_service(
     state: tauri::State<WebviewState>,
     id: String,
 ) -> Result<(), TauriumError> {
-    eprintln!("[Taurium] Reloading service: {}", id);
-    let services = state
-        .services
-        .lock()
-        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
-    if let Some(service) = services.iter().find(|s| s.id == id) {
-        if let Some(webview) = app.get_webview(&id) {
-            let url = service.url.clone();
-            let js = webviews::window_location_replace_js(&url);
-            webview.eval(&js)?;
-        }
-    }
-    Ok(())
+    webviews::reload_service_webview(&app, &state, &id)
 }
 
 #[tauri::command]
@@ -371,20 +359,8 @@ pub fn run() {
                         "ctx_reload" => {
                             eprintln!("[Taurium] Context menu: reload {}", service_id);
                             let state = app_handle_evt.state::<WebviewState>();
-                            let services = match state.services.lock() {
-                                Ok(guard) => guard,
-                                Err(e) => {
-                                    eprintln!("[Taurium] Mutex poisoned: {}", e);
-                                    return;
-                                }
-                            };
-                            if let Some(service) = services.iter().find(|s| s.id == service_id) {
-                                if let Some(webview) = app_handle_evt.get_webview(&service_id) {
-                                    let url = service.url.clone();
-                                    let js = webviews::window_location_replace_js(&url);
-                                    webview.eval(&js).ok();
-                                }
-                            }
+                            webviews::reload_service_webview(app_handle_evt, &state, &service_id)
+                                .ok();
                         }
                         "ctx_zoom_in" => {
                             eprintln!("[Taurium] Context menu: zoom in {}", service_id);
