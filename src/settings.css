@@ -314,27 +314,6 @@ h2 {
   background: #344068;
 }
 
-.restart-section {
-  margin-top: 24px;
-  text-align: center;
-}
-
-.btn-restart {
-  background: #e94560;
-  color: #fff;
-  width: 100%;
-  padding: 12px;
-  font-size: 15px;
-}
-
-.btn-restart:hover {
-  background: #d63851;
-}
-
-.btn-restart.hidden {
-  display: none;
-}
-
 /* Confirm dialog */
 .confirm-dialog {
   position: fixed;
