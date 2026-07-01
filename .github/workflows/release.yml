@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag de version à publier (ex: v0.2.0). Le tag est créé sur la branche sélectionnée s'il n'existe pas."
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -85,7 +91,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: "Taurium ${{ github.ref_name }}"
+          # inputs.version when triggered manually, otherwise the pushed tag
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: "Taurium ${{ github.event.inputs.version || github.ref_name }}"
           body: "Download the installer for your platform below."
           files: |
             artifacts/**/*.exe
