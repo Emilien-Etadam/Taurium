@@ -12,6 +12,69 @@ use crate::error::TauriumError;
 pub const SIDEBAR_WIDTH: f64 = 48.0;
 const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
+/// Diff existing webview ids against the new service list.
+/// Returns `(to_remove, to_add)`; unchanged ids are implicit (intersection).
+pub(crate) fn compute_service_changes(
+    old_ids: &HashSet<String>,
+    new_services: &[Service],
+) -> (Vec<String>, Vec<Service>) {
+    let new_ids: HashSet<String> = new_services.iter().map(|s| s.id.clone()).collect();
+    let to_remove: Vec<String> = old_ids.difference(&new_ids).cloned().collect();
+    let to_add: Vec<Service> = new_services
+        .iter()
+        .filter(|s| !old_ids.contains(&s.id))
+        .cloned()
+        .collect();
+    (to_remove, to_add)
+}
+
+/// Decide whether to notify and return the notification body, if any.
+pub(crate) fn notification_body_for_badge_change(
+    service_name: &str,
+    count: u32,
+    prev_count: u32,
+    notifications_enabled: bool,
+) -> Option<String> {
+    if !notifications_enabled || count <= prev_count || count == 0 {
+        return None;
+    }
+    let body = if prev_count == 0 {
+        if count == 1 {
+            format!("1 notification from {}", service_name)
+        } else {
+            format!("{} notifications from {}", count, service_name)
+        }
+    } else {
+        let new_msgs = count - prev_count;
+        if new_msgs == 1 {
+            format!("New notification from {}", service_name)
+        } else {
+            format!("{} new notifications from {}", new_msgs, service_name)
+        }
+    };
+    Some(body)
+}
+
+/// Select navigated webview ids that exceeded the inactivity threshold (excluding the active one).
+pub(crate) fn select_webviews_to_hibernate(
+    navigated_ids: &[String],
+    active_id: Option<&str>,
+    last_activity: &HashMap<String, Instant>,
+    now: Instant,
+    hibernation_secs: u64,
+) -> Vec<String> {
+    navigated_ids
+        .iter()
+        .filter(|id| active_id != Some(id.as_str()))
+        .filter(|id| {
+            last_activity
+                .get(*id)
+                .is_some_and(|last| now.duration_since(*last).as_secs() > hibernation_secs)
+        })
+        .cloned()
+        .collect()
+}
+
 pub struct WebviewState {
     pub created_ids: Mutex<Vec<String>>,
     pub active_id: Mutex<Option<String>>,
@@ -33,7 +96,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
     }
 
     let count = extract_badge_count(title);
-    eprintln!("[Taurium] Title changed: '{}' → badge count: {} (service: {})", title, count, service_id);
+    eprintln!(
+        "[Taurium] Title changed: '{}' → badge count: {} (service: {})",
+        title, count, service_id
+    );
     let state = app.state::<WebviewState>();
 
     // Update badge counts (hold lock briefly, then release before eval)
@@ -57,24 +123,23 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Send notification if badge count increased
     let prefs = load_preferences(&state.app_data_dir);
-    let should_notify = prefs.notifications_enabled && count > prev_count;
-    if should_notify && count > 0 {
-        let body = if prev_count == 0 {
-            if count == 1 {
-                format!("1 notification from {}", service_name)
-            } else {
-                format!("{} notifications from {}", count, service_name)
-            }
-        } else {
-            let new_msgs = count - prev_count;
-            if new_msgs == 1 {
-                format!("New notification from {}", service_name)
-            } else {
-                format!("{} new notifications from {}", new_msgs, service_name)
-            }
-        };
-        eprintln!("[Taurium] Sending notification: {} - {}", service_name, body);
-        match app.notification().builder().title(service_name).body(&body).show() {
+    if let Some(body) = notification_body_for_badge_change(
+        service_name,
+        count,
+        prev_count,
+        prefs.notifications_enabled,
+    ) {
+        eprintln!(
+            "[Taurium] Sending notification: {} - {}",
+            service_name, body
+        );
+        match app
+            .notification()
+            .builder()
+            .title(service_name)
+            .body(&body)
+            .show()
+        {
             Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
             Err(e) => eprintln!("[Taurium] Notification error: {}", e),
         }
@@ -82,7 +147,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Update sidebar badges (lock already released, safe to eval)
     if let Some(sidebar) = app.get_webview("sidebar") {
-        let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
+        let js = format!(
+            "window.__updateBadges && window.__updateBadges({})",
+            badges_json
+        );
         sidebar.eval(&js).ok();
     }
 
@@ -125,16 +193,14 @@ fn create_service_webview_inner(
     let sid = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
-    let data_dir = state
-        .app_data_dir
-        .join("webview_data")
-        .join(&service.id);
+    let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
-    let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
-        .on_document_title_changed(move |_wv, title| {
+    let builder = tauri::webview::WebviewBuilder::new(&service.id, url).on_document_title_changed(
+        move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
-        });
+        },
+    );
     let builder = if let Some(ref ua) = service.user_agent {
         builder.user_agent(ua)
     } else {
@@ -143,13 +209,11 @@ fn create_service_webview_inner(
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     let builder = builder.data_directory(data_dir.clone());
 
-    let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
-            LogicalSize::new(content_width, content_height),
-        )
-        ?;
+    let webview = window.add_child(
+        builder,
+        LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
+        LogicalSize::new(content_width, content_height),
+    )?;
 
     webview.hide()?;
 
@@ -165,13 +229,8 @@ fn create_service_webview_inner(
 
 /// Create a single service webview (hidden, lazy-loaded with about:blank).
 /// Safe to call from command handlers: it posts add_child() on the main thread.
-pub fn create_service_webview(
-    app: &AppHandle,
-    service: &Service,
-) -> Result<(), TauriumError> {
-    let window = app
-        .get_window("main")
-        .ok_or(TauriumError::WindowNotFound)?;
+pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), TauriumError> {
+    let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
     let (content_width, content_height) = window_content_size(&window)?;
 
     let app_handle = app.clone();
@@ -180,18 +239,16 @@ pub fn create_service_webview(
     let service_id = service.id.clone();
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), TauriumError>>();
 
-    window
-        .run_on_main_thread(move || {
-            let result = create_service_webview_inner(
-                &app_handle,
-                &window_handle,
-                &service_cloned,
-                content_width,
-                content_height,
-            );
-            let _ = tx.send(result);
-        })
-        ?;
+    window.run_on_main_thread(move || {
+        let result = create_service_webview_inner(
+            &app_handle,
+            &window_handle,
+            &service_cloned,
+            content_width,
+            content_height,
+        );
+        let _ = tx.send(result);
+    })?;
 
     match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(result) => result,
@@ -263,11 +320,9 @@ pub(crate) fn apply_service_body_zoom(webview: &tauri::Webview, zoom: Option<f64
     let js = if (z - 1.0).abs() < f64::EPSILON {
         r#"try{if(document.body)document.body.style.zoom="";}catch(e){}"#.to_string()
     } else {
-        let literal = serde_json::to_string(&format!("{z}"))
-            .unwrap_or_else(|_| "\"1\"".to_string());
-        format!(
-            "try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}"
-        )
+        let literal =
+            serde_json::to_string(&format!("{z}")).unwrap_or_else(|_| "\"1\"".to_string());
+        format!("try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}")
     };
     webview.eval(&js).ok();
 }
@@ -356,7 +411,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
     // Resize sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
-            .set_size(tauri::Size::Logical(LogicalSize::new(SIDEBAR_WIDTH, height)))
+            .set_size(tauri::Size::Logical(LogicalSize::new(
+                SIDEBAR_WIDTH,
+                height,
+            )))
             .ok();
     }
 
@@ -366,7 +424,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
             .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
             .ok();
         settings
-            .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+            .set_position(tauri::Position::Logical(LogicalPosition::new(
+                SIDEBAR_WIDTH,
+                0.0,
+            )))
             .ok();
     }
 
@@ -384,14 +445,21 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
                 .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
                 .ok();
             webview
-                .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+                .set_position(tauri::Position::Logical(LogicalPosition::new(
+                    SIDEBAR_WIDTH,
+                    0.0,
+                )))
                 .ok();
         }
     }
 }
 
 /// Apply service changes: handle reorder/delete/add instantly.
-pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<(), TauriumError> {
+pub fn apply_service_changes(
+    app: &AppHandle,
+    state: &WebviewState,
+    new_services: Vec<Service>,
+) -> Result<(), TauriumError> {
     let old_ids: HashSet<String> = state
         .created_ids
         .lock()
@@ -399,10 +467,11 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
         .iter()
         .cloned()
         .collect();
+    let (to_remove, to_add) = compute_service_changes(&old_ids, &new_services);
     let new_ids: HashSet<String> = new_services.iter().map(|s| s.id.clone()).collect();
 
     // Remove deleted service webviews
-    for id in old_ids.difference(&new_ids) {
+    for id in &to_remove {
         eprintln!("[Taurium] Removing webview: {}", id);
         if let Some(webview) = app.get_webview(id) {
             webview.eval("window.location.replace('about:blank')").ok();
@@ -431,7 +500,7 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
     }
 
     // Create newly added service webviews on-the-fly
-    for service in new_services.iter().filter(|s| !old_ids.contains(&s.id)) {
+    for service in &to_add {
         eprintln!("[Taurium] Creating new webview on-the-fly: {}", service.id);
         create_service_webview(app, service)?;
     }
@@ -457,7 +526,9 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
 
     // Refresh sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
-        sidebar.eval("window.__reloadSidebar && window.__reloadSidebar()").ok();
+        sidebar
+            .eval("window.__reloadSidebar && window.__reloadSidebar()")
+            .ok();
     }
 
     Ok(())
@@ -488,29 +559,276 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
     };
     let now = Instant::now();
 
-    let ids: Vec<String> = navigated.iter().cloned().collect();
-    for id in ids {
-        // Don't hibernate the active webview
-        if active.as_deref() == Some(id.as_str()) {
-            continue;
-        }
-
-        if let Some(last) = last_activity.get(&id) {
-            if now.duration_since(*last).as_secs() > HIBERNATION_SECS {
-                if let Some(webview) = app.get_webview(&id) {
-                    eprintln!("[Taurium] Hibernating webview: {}", id);
-                    webview.eval("window.location.replace('about:blank')").ok();
-                    navigated.remove(&id);
-                    last_activity.remove(&id);
-                }
-            }
+    let navigated_ids: Vec<String> = navigated.iter().cloned().collect();
+    let to_hibernate = select_webviews_to_hibernate(
+        &navigated_ids,
+        active.as_deref(),
+        &last_activity,
+        now,
+        HIBERNATION_SECS,
+    );
+    for id in to_hibernate {
+        if let Some(webview) = app.get_webview(&id) {
+            eprintln!("[Taurium] Hibernating webview: {}", id);
+            webview.eval("window.location.replace('about:blank')").ok();
+            navigated.remove(&id);
+            last_activity.remove(&id);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::window_location_replace_js;
+    use std::collections::{HashMap, HashSet};
+    use std::time::{Duration, Instant};
+
+    use super::{
+        compute_service_changes, notification_body_for_badge_change, select_webviews_to_hibernate,
+        window_location_replace_js,
+    };
+    use crate::config::Service;
+
+    fn sample_service(id: &str) -> Service {
+        Service {
+            id: id.to_string(),
+            name: format!("Service {id}"),
+            url: format!("https://{id}.example.com"),
+            icon: "icon.png".to_string(),
+            user_agent: None,
+            zoom: None,
+        }
+    }
+
+    fn old_ids(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|id| (*id).to_string()).collect()
+    }
+
+    fn assert_same_ids(actual: &[String], expected: &[&str]) {
+        let mut actual_sorted = actual.to_vec();
+        actual_sorted.sort();
+        let mut expected_sorted: Vec<String> = expected.iter().map(|s| (*s).to_string()).collect();
+        expected_sorted.sort();
+        assert_eq!(actual_sorted, expected_sorted);
+    }
+
+    #[test]
+    fn compute_service_changes_empty_old_adds_all() {
+        let new = vec![sample_service("a"), sample_service("b")];
+        let (to_remove, to_add) = compute_service_changes(&HashSet::new(), &new);
+        assert!(to_remove.is_empty());
+        assert_eq!(to_add.len(), 2);
+        assert_eq!(to_add[0].id, "a");
+        assert_eq!(to_add[1].id, "b");
+    }
+
+    #[test]
+    fn compute_service_changes_unchanged_is_empty() {
+        let new = vec![sample_service("a"), sample_service("b")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b"]), &new);
+        assert!(to_remove.is_empty());
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn compute_service_changes_reorder_only_is_empty() {
+        let new = vec![sample_service("b"), sample_service("a")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b"]), &new);
+        assert!(to_remove.is_empty());
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn compute_service_changes_detects_removals() {
+        let new = vec![sample_service("a")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b", "c"]), &new);
+        assert_same_ids(&to_remove, &["b", "c"]);
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn compute_service_changes_detects_additions_preserving_order() {
+        let new = vec![
+            sample_service("a"),
+            sample_service("b"),
+            sample_service("c"),
+        ];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a"]), &new);
+        assert!(to_remove.is_empty());
+        assert_eq!(to_add.len(), 2);
+        assert_eq!(to_add[0].id, "b");
+        assert_eq!(to_add[1].id, "c");
+    }
+
+    #[test]
+    fn compute_service_changes_detects_simultaneous_add_and_remove() {
+        let new = vec![sample_service("b"), sample_service("d")];
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b", "c"]), &new);
+        assert_same_ids(&to_remove, &["a", "c"]);
+        assert_eq!(to_add.len(), 1);
+        assert_eq!(to_add[0].id, "d");
+    }
+
+    #[test]
+    fn compute_service_changes_empty_new_removes_all() {
+        let (to_remove, to_add) = compute_service_changes(&old_ids(&["a", "b"]), &[]);
+        assert_same_ids(&to_remove, &["a", "b"]);
+        assert!(to_add.is_empty());
+    }
+
+    #[test]
+    fn notification_body_disabled_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 5, 0, false),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_equal_count_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 3, 3, true),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_decreased_count_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 2, 5, true),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_zero_count_returns_none() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 0, 0, true),
+            None
+        );
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 0, 3, true),
+            None
+        );
+    }
+
+    #[test]
+    fn notification_body_first_single_message() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 1, 0, true),
+            Some("1 notification from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn notification_body_first_multiple_messages() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 5, 0, true),
+            Some("5 notifications from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn notification_body_increment_single_new_message() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 4, 3, true),
+            Some("New notification from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn notification_body_increment_multiple_new_messages() {
+        assert_eq!(
+            notification_body_for_badge_change("Slack", 8, 3, true),
+            Some("5 new notifications from Slack".to_string())
+        );
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_skips_active() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("active".to_string(), now - Duration::from_secs(900))]);
+        let selected = select_webviews_to_hibernate(
+            &["active".to_string()],
+            Some("active"),
+            &last_activity,
+            now,
+            600,
+        );
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_selects_idle_navigated() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("idle".to_string(), now - Duration::from_secs(601))]);
+        let selected =
+            select_webviews_to_hibernate(&["idle".to_string()], None, &last_activity, now, 600);
+        assert_eq!(selected, vec!["idle".to_string()]);
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_respects_threshold_boundary() {
+        let now = Instant::now();
+        let last_activity =
+            HashMap::from([("borderline".to_string(), now - Duration::from_secs(600))]);
+        let selected = select_webviews_to_hibernate(
+            &["borderline".to_string()],
+            None,
+            &last_activity,
+            now,
+            600,
+        );
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_skips_without_activity_entry() {
+        let now = Instant::now();
+        let selected =
+            select_webviews_to_hibernate(&["orphan".to_string()], None, &HashMap::new(), now, 600);
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_skips_not_yet_idle() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("recent".to_string(), now - Duration::from_secs(30))]);
+        let selected =
+            select_webviews_to_hibernate(&["recent".to_string()], None, &last_activity, now, 600);
+        assert!(selected.is_empty());
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_multiple_candidates() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([
+            ("idle-a".to_string(), now - Duration::from_secs(700)),
+            ("active".to_string(), now - Duration::from_secs(900)),
+            ("idle-b".to_string(), now - Duration::from_secs(800)),
+            ("recent".to_string(), now - Duration::from_secs(10)),
+        ]);
+        let selected = select_webviews_to_hibernate(
+            &[
+                "idle-a".to_string(),
+                "active".to_string(),
+                "idle-b".to_string(),
+                "recent".to_string(),
+            ],
+            Some("active"),
+            &last_activity,
+            now,
+            600,
+        );
+        assert_eq!(selected, vec!["idle-a".to_string(), "idle-b".to_string()]);
+    }
+
+    #[test]
+    fn select_webviews_to_hibernate_ignores_non_navigated() {
+        let now = Instant::now();
+        let last_activity = HashMap::from([("hidden".to_string(), now - Duration::from_secs(900))]);
+        let selected = select_webviews_to_hibernate(&[], None, &last_activity, now, 600);
+        assert!(selected.is_empty());
+    }
 
     #[test]
     fn test_url_escaping_in_window_location_replace_js() {
