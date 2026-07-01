@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Instant;
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
@@ -25,6 +26,19 @@ pub struct WebviewState {
     pub badge_counts: Mutex<HashMap<String, u32>>,
 }
 
+fn is_meaningful_page_url(url: &str) -> bool {
+    !url.is_empty() && url != "about:blank"
+}
+
+/// Notify the sidebar that a service webview has finished loading.
+fn notify_service_loaded(app: &AppHandle, service_id: &str) {
+    if let Some(sidebar) = app.get_webview("sidebar") {
+        let id_json = serde_json::to_string(service_id).unwrap_or_default();
+        let js = format!("window.__serviceLoaded && window.__serviceLoaded({id_json})");
+        sidebar.eval(&js).ok();
+    }
+}
+
 /// Handle document title change: update badge count, send notification, refresh sidebar
 pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str, title: &str) {
     // Skip blank/empty pages (avoid unnecessary work during webview creation)
@@ -32,8 +46,13 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
         return;
     }
 
+    notify_service_loaded(app, service_id);
+
     let count = extract_badge_count(title);
-    eprintln!("[Taurium] Title changed: '{}' → badge count: {} (service: {})", title, count, service_id);
+    eprintln!(
+        "[Taurium] Title changed: '{}' → badge count: {} (service: {})",
+        title, count, service_id
+    );
     let state = app.state::<WebviewState>();
 
     // Update badge counts (hold lock briefly, then release before eval)
@@ -73,8 +92,17 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
                 format!("{} new notifications from {}", new_msgs, service_name)
             }
         };
-        eprintln!("[Taurium] Sending notification: {} - {}", service_name, body);
-        match app.notification().builder().title(service_name).body(&body).show() {
+        eprintln!(
+            "[Taurium] Sending notification: {} - {}",
+            service_name, body
+        );
+        match app
+            .notification()
+            .builder()
+            .title(service_name)
+            .body(&body)
+            .show()
+        {
             Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
             Err(e) => eprintln!("[Taurium] Notification error: {}", e),
         }
@@ -82,7 +110,10 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     // Update sidebar badges (lock already released, safe to eval)
     if let Some(sidebar) = app.get_webview("sidebar") {
-        let js = format!("window.__updateBadges && window.__updateBadges({})", badges_json);
+        let js = format!(
+            "window.__updateBadges && window.__updateBadges({})",
+            badges_json
+        );
         sidebar.eval(&js).ok();
     }
 
@@ -122,16 +153,22 @@ fn create_service_webview_inner(
 ) -> Result<(), TauriumError> {
     let url = WebviewUrl::External("about:blank".parse().unwrap());
     let app_clone = app.clone();
+    let app_for_load = app.clone();
     let sid = service.id.clone();
+    let sid_for_load = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
-    let data_dir = state
-        .app_data_dir
-        .join("webview_data")
-        .join(&service.id);
+    let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
     let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
+        .on_page_load(move |_wv, payload| {
+            if payload.event() == PageLoadEvent::Finished
+                && is_meaningful_page_url(payload.url().as_str())
+            {
+                notify_service_loaded(&app_for_load, &sid_for_load);
+            }
+        })
         .on_document_title_changed(move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
         });
@@ -143,13 +180,11 @@ fn create_service_webview_inner(
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     let builder = builder.data_directory(data_dir.clone());
 
-    let webview = window
-        .add_child(
-            builder,
-            LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
-            LogicalSize::new(content_width, content_height),
-        )
-        ?;
+    let webview = window.add_child(
+        builder,
+        LogicalPosition::new(SIDEBAR_WIDTH, 0.0),
+        LogicalSize::new(content_width, content_height),
+    )?;
 
     webview.hide()?;
 
@@ -165,13 +200,8 @@ fn create_service_webview_inner(
 
 /// Create a single service webview (hidden, lazy-loaded with about:blank).
 /// Safe to call from command handlers: it posts add_child() on the main thread.
-pub fn create_service_webview(
-    app: &AppHandle,
-    service: &Service,
-) -> Result<(), TauriumError> {
-    let window = app
-        .get_window("main")
-        .ok_or(TauriumError::WindowNotFound)?;
+pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), TauriumError> {
+    let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
     let (content_width, content_height) = window_content_size(&window)?;
 
     let app_handle = app.clone();
@@ -180,18 +210,16 @@ pub fn create_service_webview(
     let service_id = service.id.clone();
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), TauriumError>>();
 
-    window
-        .run_on_main_thread(move || {
-            let result = create_service_webview_inner(
-                &app_handle,
-                &window_handle,
-                &service_cloned,
-                content_width,
-                content_height,
-            );
-            let _ = tx.send(result);
-        })
-        ?;
+    window.run_on_main_thread(move || {
+        let result = create_service_webview_inner(
+            &app_handle,
+            &window_handle,
+            &service_cloned,
+            content_width,
+            content_height,
+        );
+        let _ = tx.send(result);
+    })?;
 
     match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(result) => result,
@@ -263,11 +291,9 @@ pub(crate) fn apply_service_body_zoom(webview: &tauri::Webview, zoom: Option<f64
     let js = if (z - 1.0).abs() < f64::EPSILON {
         r#"try{if(document.body)document.body.style.zoom="";}catch(e){}"#.to_string()
     } else {
-        let literal = serde_json::to_string(&format!("{z}"))
-            .unwrap_or_else(|_| "\"1\"".to_string());
-        format!(
-            "try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}"
-        )
+        let literal =
+            serde_json::to_string(&format!("{z}")).unwrap_or_else(|_| "\"1\"".to_string());
+        format!("try{{if(document.body)document.body.style.zoom={literal};}}catch(e){{}}")
     };
     webview.eval(&js).ok();
 }
@@ -300,12 +326,23 @@ pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), 
         .get_webview(id)
         .ok_or_else(|| TauriumError::WebviewNotFound(id.to_string()))?;
 
+    let was_already_navigated = state
+        .navigated
+        .lock()
+        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+        .contains(id);
+
     // Lazy load: navigate to real URL on first click
     ensure_navigated(app, state, id);
 
     apply_zoom_from_state(app, state, id);
 
     webview.show()?;
+
+    // Already-loaded tabs do not emit page-load/title events on re-show.
+    if was_already_navigated {
+        notify_service_loaded(app, id);
+    }
 
     *state
         .active_id
@@ -356,7 +393,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
     // Resize sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
-            .set_size(tauri::Size::Logical(LogicalSize::new(SIDEBAR_WIDTH, height)))
+            .set_size(tauri::Size::Logical(LogicalSize::new(
+                SIDEBAR_WIDTH,
+                height,
+            )))
             .ok();
     }
 
@@ -366,7 +406,10 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
             .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
             .ok();
         settings
-            .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+            .set_position(tauri::Position::Logical(LogicalPosition::new(
+                SIDEBAR_WIDTH,
+                0.0,
+            )))
             .ok();
     }
 
@@ -384,14 +427,21 @@ pub fn resize_all_webviews(app: &AppHandle, state: &WebviewState) {
                 .set_size(tauri::Size::Logical(LogicalSize::new(width, height)))
                 .ok();
             webview
-                .set_position(tauri::Position::Logical(LogicalPosition::new(SIDEBAR_WIDTH, 0.0)))
+                .set_position(tauri::Position::Logical(LogicalPosition::new(
+                    SIDEBAR_WIDTH,
+                    0.0,
+                )))
                 .ok();
         }
     }
 }
 
 /// Apply service changes: handle reorder/delete/add instantly.
-pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services: Vec<Service>) -> Result<(), TauriumError> {
+pub fn apply_service_changes(
+    app: &AppHandle,
+    state: &WebviewState,
+    new_services: Vec<Service>,
+) -> Result<(), TauriumError> {
     let old_ids: HashSet<String> = state
         .created_ids
         .lock()
@@ -457,7 +507,9 @@ pub fn apply_service_changes(app: &AppHandle, state: &WebviewState, new_services
 
     // Refresh sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
-        sidebar.eval("window.__reloadSidebar && window.__reloadSidebar()").ok();
+        sidebar
+            .eval("window.__reloadSidebar && window.__reloadSidebar()")
+            .ok();
     }
 
     Ok(())
@@ -510,7 +562,14 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
 
 #[cfg(test)]
 mod tests {
-    use super::window_location_replace_js;
+    use super::{is_meaningful_page_url, window_location_replace_js};
+
+    #[test]
+    fn test_is_meaningful_page_url() {
+        assert!(!is_meaningful_page_url(""));
+        assert!(!is_meaningful_page_url("about:blank"));
+        assert!(is_meaningful_page_url("https://example.com"));
+    }
 
     #[test]
     fn test_url_escaping_in_window_location_replace_js() {

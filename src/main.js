@@ -1,6 +1,10 @@
 let activeId = null;
 let settingsOpen = false;
 let services = [];
+let pendingServiceId = null;
+let overlayHideTimer = null;
+
+const OVERLAY_FALLBACK_MS = 10000;
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -99,25 +103,56 @@ window.__applyPreferences = function(prefs) {
   applyPreferences(prefs);
 };
 
+function showLoadingOverlay() {
+  const overlay = document.getElementById("loading-overlay");
+  if (!overlay) return;
+
+  if (overlayHideTimer) {
+    clearTimeout(overlayHideTimer);
+    overlayHideTimer = null;
+  }
+
+  overlay.classList.remove("hidden");
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById("loading-overlay");
+  if (!overlay) return;
+
+  overlay.classList.add("hidden");
+
+  if (overlayHideTimer) {
+    clearTimeout(overlayHideTimer);
+    overlayHideTimer = null;
+  }
+
+  pendingServiceId = null;
+}
+
+// Called from Rust when the service webview has finished loading
+window.__serviceLoaded = function(id) {
+  if (id === pendingServiceId) {
+    hideLoadingOverlay();
+  }
+};
+
 async function switchService(id) {
   const invoke = getInvoke();
   if (!invoke) return;
 
-  // Show loading spinner
-  const overlay = document.getElementById("loading-overlay");
-  overlay.classList.remove("hidden");
+  pendingServiceId = id;
+  showLoadingOverlay();
 
   try {
     await invoke("switch_service", { id });
     activeId = id;
     settingsOpen = false;
     updateActiveState();
+    overlayHideTimer = setTimeout(hideLoadingOverlay, OVERLAY_FALLBACK_MS);
   } catch (err) {
     console.error("Switch error:", err);
+    hideLoadingOverlay();
   }
-
-  // Hide loading after a short delay (webview takes a moment to show)
-  setTimeout(() => overlay.classList.add("hidden"), 500);
 }
 
 async function openSettings() {
