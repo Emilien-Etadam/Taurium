@@ -95,5 +95,35 @@
     "url": "https://signal.org",
     "icon": "🔒",
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  {
+    "id": "zulip",
+    "name": "Zulip",
+    "url": "https://zulip.com",
+    "icon": "🗨️"
+  },
+  {
+    "id": "docmost",
+    "name": "Docmost",
+    "url": "https://app.docmost.com",
+    "icon": "📚"
+  },
+  {
+    "id": "google-messages",
+    "name": "Google Messages",
+    "url": "https://messages.google.com/web",
+    "icon": "📱"
+  },
+  {
+    "id": "home-assistant",
+    "name": "Home Assistant",
+    "url": "https://my.home-assistant.io",
+    "icon": "🏠"
+  },
+  {
+    "id": "jotty",
+    "name": "Jotty",
+    "url": "https://jotty.page",
+    "icon": "🗒️"
   }
 ]
