@@ -144,25 +144,58 @@ body {
    colour, the backlight from the accent colour, so both follow the theme. */
 .service-icon,
 .settings-icon {
-  --key-top: color-mix(in srgb, var(--sidebar-color) 80%, #ffffff 20%);
-  --key-bottom: color-mix(in srgb, var(--sidebar-color) 96%, #000000 4%);
-  --key-skirt: color-mix(in srgb, var(--sidebar-color) 55%, #000000 45%);
-  --key-edge: color-mix(in srgb, #ffffff 14%, transparent);
+  /* Sculpted keycap: a lit top face (::before) sitting on shaded walls (the
+     element itself), extruded above the board by a solid dark base shadow.
+     Tones derive from the sidebar colour, backlight from the accent. */
+  --key-wall-top: color-mix(in srgb, var(--sidebar-color) 84%, #ffffff 16%);
+  --key-wall-bottom: color-mix(in srgb, var(--sidebar-color) 60%, #000000 40%);
+  --key-base: color-mix(in srgb, var(--sidebar-color) 34%, #000000 66%);
+  --key-face-top: color-mix(in srgb, var(--sidebar-color) 70%, #ffffff 30%);
+  --key-face-bottom: color-mix(in srgb, var(--sidebar-color) 88%, #000000 12%);
 
   display: flex;
   align-items: center;
   justify-content: center;
   height: var(--icon-size);
   cursor: pointer;
-  border-radius: 7px;
-  border: 1px solid var(--key-edge);
-  background: linear-gradient(180deg, var(--key-top), var(--key-bottom));
-  box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45);
-  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+  border-radius: 8px;
+  /* Shaded side walls: brighter at the top rim, dark at the front edge. */
+  background: linear-gradient(180deg, var(--key-wall-top), var(--key-wall-bottom));
+  /* Solid extrusion (key height) + hard contact shadow on the board. */
+  box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.05s ease-out, box-shadow 0.05s ease-out;
   user-select: none;
   position: relative;
   flex-shrink: 0;
 }
+
+/* The sculpted top face. Inset more at the bottom so the front wall shows —
+   a real keycap tapers upward. Concave via an inner bottom shadow. */
+.service-icon::before,
+.settings-icon::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 2px;
+  bottom: 5px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--key-face-top), var(--key-face-bottom));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+  z-index: 0;
+}
+/* Keep the legend and its badge above the sculpted face. */
+.service-icon .glyph-wrap,
+.settings-icon .glyph-wrap,
+.service-icon .label,
+.settings-icon .label {
+  position: relative;
+  z-index: 1;
+}
+
 /* Expanded board: legends left-aligned so labels can sit beside them. */
 #sidebar.expanded .service-icon,
 #sidebar.expanded .settings-icon {
@@ -170,10 +203,12 @@ body {
   padding-left: 4px;
 }
 
-/* Hover: the cap lights a touch brighter (no highlight blob). */
-.service-icon:hover,
-.settings-icon:hover {
-  --key-top: color-mix(in srgb, var(--sidebar-color) 68%, #ffffff 32%);
+/* Hover: the top face catches a bit more light. */
+.service-icon:hover::before,
+.settings-icon:hover::before {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--sidebar-color) 60%, #ffffff 40%),
+    var(--key-face-bottom));
 }
 
 .service-icon:focus-visible,
@@ -182,50 +217,59 @@ body {
   outline-offset: 2px;
 }
 
-/* Active service: the key rests held-down, with a faint accent-lit top. */
+/* Active service: the cap rests held partway down, its face accent-tinted. */
 .service-icon.active,
 .settings-icon.active {
-  --key-top: color-mix(in srgb, var(--accent-color) 24%, var(--sidebar-color));
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--key-skirt), 0 2px 4px rgba(0, 0, 0, 0.5),
-    inset 0 1px 5px rgba(0, 0, 0, 0.4);
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--key-base), 0 2px 4px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.service-icon.active::before,
+.settings-icon.active::before {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-color) 28%, var(--key-face-top)),
+    color-mix(in srgb, var(--accent-color) 12%, var(--key-face-bottom)));
 }
 
-/* Backlit key: a notification lights the cap from behind and makes it
-   breathe — the RGB backlight. Kept last so the glow wins over active. */
-.service-icon:has(.badge) {
-  --key-top: color-mix(in srgb, var(--accent-color) 30%, var(--sidebar-color));
-  border-color: color-mix(in srgb, var(--accent-color) 60%, transparent);
-  animation: key-backlight 2.1s ease-in-out infinite;
-}
-
-/* Press: the cap travels down onto the board (skirt collapses). Placed
-   after .active so a click always reads as a press. */
+/* Press: the cap slams flush onto the board (walls collapse). Kept after
+   .active so a click always reads as a full press. */
 .service-icon:active,
 .settings-icon:active {
-  transform: translateY(3px);
-  box-shadow: 0 0 0 var(--key-skirt), 0 1px 2px rgba(0, 0, 0, 0.5),
-    inset 0 1px 4px rgba(0, 0, 0, 0.45);
+  transform: translateY(4px);
+  box-shadow: 0 0 0 var(--key-base), 0 1px 2px rgba(0, 0, 0, 0.6),
+    inset 0 2px 4px rgba(0, 0, 0, 0.45);
 }
 
+/* Backlit key: a notification drives an LED behind the cap — the accent
+   glows out from under it and floods the top face, breathing slowly. */
+.service-icon:has(.badge) {
+  animation: key-backlight 2.4s ease-in-out infinite;
+}
+.service-icon:has(.badge)::before {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-color) 42%, var(--key-face-top)),
+    color-mix(in srgb, var(--accent-color) 22%, var(--key-face-bottom)));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 14px color-mix(in srgb, var(--accent-color) 60%, transparent);
+}
 @keyframes key-backlight {
   0%, 100% {
-    box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45),
-      0 0 10px 0 color-mix(in srgb, var(--accent-color) 55%, transparent),
-      inset 0 0 8px color-mix(in srgb, var(--accent-color) 32%, transparent);
+    box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
+      0 0 9px 0 color-mix(in srgb, var(--accent-color) 50%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
   50% {
-    box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45),
-      0 0 20px 4px color-mix(in srgb, var(--accent-color) 85%, transparent),
-      inset 0 0 13px color-mix(in srgb, var(--accent-color) 55%, transparent);
+    box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
+      0 0 22px 5px color-mix(in srgb, var(--accent-color) 85%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .service-icon:has(.badge) {
     animation: none;
-    box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45),
+    box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
       0 0 16px 2px color-mix(in srgb, var(--accent-color) 70%, transparent),
-      inset 0 0 10px color-mix(in srgb, var(--accent-color) 45%, transparent);
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
 }
 
@@ -271,6 +315,10 @@ body {
 .service-icon:has(.badge) .icon-img {
   filter: grayscale(0);
   opacity: 1;
+}
+/* Backlit legend catches the LED — a soft accent halo around the glyph. */
+.service-icon:has(.badge) .glyph {
+  text-shadow: 0 0 9px color-mix(in srgb, var(--accent-color) 80%, transparent);
 }
 
 /* Text label (hidden while the sidebar is compact) */
