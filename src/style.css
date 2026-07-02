@@ -152,9 +152,11 @@ body {
   flex-shrink: 0;
 }
 
-.service-icon:hover,
+/* No highlight blob on hover — the icon colouring in (grayscale → color,
+   see below) is the hover cue. Only the chrome-less settings/toggle rows,
+   whose glyphs don't colour, get a whisper of background. */
 .settings-icon:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .service-icon:focus-visible,
@@ -163,11 +165,19 @@ body {
   outline-offset: -2px;
 }
 
-/* Active state: inset bar (no layout impact, nothing shifts) */
-.service-icon.active,
-.settings-icon.active {
-  background: rgba(233, 69, 96, 0.15);
-  box-shadow: inset 3px 0 0 var(--accent-color);
+/* Active state: a single slim accent bar on the left edge. No tinted
+   rounded highlight — just the coloured icon and this marker. */
+.service-icon.active::after,
+.settings-icon.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 56%;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent-color);
 }
 
 /* Glyph + its overlays stay together so dot/badge are always anchored */
@@ -249,20 +259,20 @@ body {
   animation: spin 0.7s linear infinite;
 }
 
-/* Notification badge: top-right of the glyph. Made loud on purpose —
-   larger, bolder, with a soft accent glow and a pulsing ring so unread
-   counts are impossible to miss. */
+/* Notification badge: top-right of the glyph. A plain solid accent pill —
+   no glow, no pulse, no bounce. Against the muted grayscale icons it stands
+   out on its own. */
 .badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -4px;
+  right: -4px;
   background: var(--accent-color);
   color: #fff;
   font-size: 11px;
-  font-weight: 800;
-  min-width: 20px;
-  height: 20px;
-  border-radius: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,29 +280,6 @@ body {
   line-height: 1;
   border: 2px solid var(--sidebar-color);
   box-sizing: border-box;
-  isolation: isolate;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  animation: badge-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-/* Expanding accent ring behind the badge (radar pulse). Uses the accent
-   color so it follows the user's custom theme. */
-.badge::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--accent-color);
-  z-index: -1;
-  animation: badge-pulse 1.6s ease-out infinite;
-}
-@keyframes badge-pop {
-  0% { transform: scale(0); }
-  60% { transform: scale(1.18); }
-  100% { transform: scale(1); }
-}
-@keyframes badge-pulse {
-  0% { transform: scale(1); opacity: 0.55; }
-  70%, 100% { transform: scale(1.7); opacity: 0; }
 }
 
 /* Group header: fixed height so icons never shift.
