@@ -144,34 +144,37 @@ body {
    colour, the backlight from the accent colour, so both follow the theme. */
 .service-icon,
 .settings-icon {
-  /* Sculpted keycap: a lit top face (::before) sitting on shaded walls (the
-     element itself), extruded above the board by a solid dark base shadow.
-     Tones derive from the sidebar colour, backlight from the accent. */
-  --key-wall-top: color-mix(in srgb, var(--sidebar-color) 84%, #ffffff 16%);
-  --key-wall-bottom: color-mix(in srgb, var(--sidebar-color) 60%, #000000 40%);
-  --key-base: color-mix(in srgb, var(--sidebar-color) 34%, #000000 66%);
-  --key-face-top: color-mix(in srgb, var(--sidebar-color) 70%, #ffffff 30%);
-  --key-face-bottom: color-mix(in srgb, var(--sidebar-color) 88%, #000000 12%);
+  /* Vintage mechanical keycap (IBM Model M / retro beige): a tall, matte
+     cream cap with a deep spherical dish, chunky beveled walls and a dark
+     engraved legend. Fixed cream palette so the retro identity stays put
+     whatever the theme colour; only the notification backlight uses accent. */
+  --key-wall-top: #d6ccae;
+  --key-wall-bottom: #b3a683;
+  --key-base: #7d7157;
+  --key-face-top: #ece5d1;
+  --key-face-bottom: #dbd0b6;
+  --key-legend: #453d29;
 
   display: flex;
   align-items: center;
   justify-content: center;
   height: var(--icon-size);
   cursor: pointer;
-  border-radius: 8px;
-  /* Shaded side walls: brighter at the top rim, dark at the front edge. */
+  border-radius: 7px;
+  /* Beveled side walls: catching light at the top rim, shadowed at the front. */
   background: linear-gradient(180deg, var(--key-wall-top), var(--key-wall-bottom));
-  /* Solid extrusion (key height) + hard contact shadow on the board. */
-  box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  /* Tall solid extrusion (key height) + hard contact shadow on the board. */
+  box-shadow: 0 5px 0 var(--key-base), 0 8px 9px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition: transform 0.05s ease-out, box-shadow 0.05s ease-out;
   user-select: none;
   position: relative;
   flex-shrink: 0;
 }
 
-/* The sculpted top face. Inset more at the bottom so the front wall shows —
-   a real keycap tapers upward. Concave via an inner bottom shadow. */
+/* The dished top face. Inset more at the bottom so the tall front wall shows
+   (the cap sculpts upward). Spherical dish via a soft top sheen + bottom
+   shade; matte finish, no glossy hotspot. */
 .service-icon::before,
 .settings-icon::before {
   content: "";
@@ -179,11 +182,13 @@ body {
   left: 2px;
   right: 2px;
   top: 2px;
-  bottom: 5px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, var(--key-face-top), var(--key-face-bottom));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -5px 8px rgba(0, 0, 0, 0.32);
+  bottom: 6px;
+  border-radius: 5px 5px 6px 6px;
+  background:
+    radial-gradient(115% 80% at 50% 8%, rgba(255, 255, 255, 0.5), transparent 60%),
+    linear-gradient(180deg, var(--key-face-top), var(--key-face-bottom));
+  box-shadow: inset 0 2px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -7px 9px rgba(90, 74, 40, 0.28);
   pointer-events: none;
   z-index: 0;
 }
@@ -299,12 +304,12 @@ body {
   pointer-events: none;
 }
 
-/* Key legends: muted monochrome at rest, lit to full colour when the key is
-   hovered, active, or backlit by a notification (as if the LED lights it). */
+/* Key legends: dark engraved-look on the cream cap at rest, lit to full
+   colour when the key is hovered, active, or backlit by a notification. */
 .service-icon .glyph,
 .service-icon .icon-img {
-  filter: grayscale(1);
-  opacity: 0.72;
+  filter: grayscale(1) brightness(0.42) contrast(1.1);
+  opacity: 0.9;
   transition: filter 0.18s ease, opacity 0.18s ease;
 }
 .service-icon:hover .glyph,
@@ -321,12 +326,15 @@ body {
   text-shadow: 0 0 9px color-mix(in srgb, var(--accent-color) 80%, transparent);
 }
 
-/* Text label (hidden while the sidebar is compact) */
+/* Legend text on the cap: dark engraved-look, slightly condensed uppercase
+   for that retro keyboard-legend feel. Hidden while the sidebar is compact. */
 .label {
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
   white-space: nowrap;
   margin-left: 10px;
-  color: var(--text);
+  color: var(--key-legend);
   opacity: 0;
   max-width: 0;
   overflow: hidden;
@@ -409,7 +417,8 @@ body {
 }
 
 .settings-icon .glyph {
-  color: var(--text-dim);
+  color: var(--key-legend);
+  opacity: 0.85;
 }
 
 /* Empty state */
