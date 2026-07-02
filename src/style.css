@@ -196,6 +196,23 @@ body {
   pointer-events: none;
 }
 
+/* Épuré: service icons are muted monochrome at rest, and only bloom into
+   full color for the hovered or active service. Cuts the emoji rainbow down
+   to a single calm sidebar. */
+.service-icon .glyph,
+.service-icon .icon-img {
+  filter: grayscale(1);
+  opacity: 0.7;
+  transition: filter 0.18s ease, opacity 0.18s ease;
+}
+.service-icon:hover .glyph,
+.service-icon:hover .icon-img,
+.service-icon.active .glyph,
+.service-icon.active .icon-img {
+  filter: grayscale(0);
+  opacity: 1;
+}
+
 /* Text label (hidden while the sidebar is compact) */
 .label {
   font-size: 13px;
@@ -208,7 +225,10 @@ body {
   transition: opacity 0.15s;
 }
 
-/* Status dot: bottom-right of the glyph */
+/* Status dot: bottom-right of the glyph.
+   Only the transient "loading" spinner is shown — the old permanent green
+   "loaded" dot was pure noise (every opened service just stayed green), so
+   the loaded/idle states render nothing. */
 .status-dot {
   position: absolute;
   right: 3px;
@@ -216,11 +236,11 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 2px solid var(--sidebar-color);
   box-sizing: content-box;
 }
-.status-dot.loaded {
-  background: #2ecc71;
+.status-dot.loaded,
+.status-dot.idle {
+  display: none;
 }
 .status-dot.loading {
   background: transparent;
@@ -228,29 +248,51 @@ body {
   border-top-color: var(--accent-color);
   animation: spin 0.7s linear infinite;
 }
-.status-dot.idle {
-  background: rgba(255, 255, 255, 0.18);
-}
 
-/* Notification badge: top-right of the glyph */
+/* Notification badge: top-right of the glyph. Made loud on purpose —
+   larger, bolder, with a soft accent glow and a pulsing ring so unread
+   counts are impossible to miss. */
 .badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -5px;
+  right: -5px;
   background: var(--accent-color);
   color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 5px;
   line-height: 1;
   border: 2px solid var(--sidebar-color);
   box-sizing: border-box;
+  isolation: isolate;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  animation: badge-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* Expanding accent ring behind the badge (radar pulse). Uses the accent
+   color so it follows the user's custom theme. */
+.badge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--accent-color);
+  z-index: -1;
+  animation: badge-pulse 1.6s ease-out infinite;
+}
+@keyframes badge-pop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+@keyframes badge-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  70%, 100% { transform: scale(1.7); opacity: 0; }
 }
 
 /* Group header: fixed height so icons never shift.
