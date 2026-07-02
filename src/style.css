@@ -119,12 +119,18 @@ body {
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   width: 100%;
-  padding: 6px 5px;
+  /* Recessed tray the 3D keys sit in. */
+  margin: 6px 5px;
+  padding: 9px 6px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--sidebar-color) 82%, #000000 18%);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -133,66 +139,49 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  padding: 6px 5px;
-  gap: 8px;
+  gap: 9px;
+  margin: 0 5px 6px;
+  padding: 9px 6px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--sidebar-color) 82%, #000000 18%);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* ── Keyboard concept ──────────────────────────────────────────────────
-   Each service is a mechanical keycap: a raised cap sitting on the board,
-   that travels down when pressed, and lights up from behind (RGB backlight)
-   when it has a notification. Cap shades are derived from the user's sidebar
-   colour, the backlight from the accent colour, so both follow the theme. */
+/* ── 3D toolbar keys (cerpow "3D Figma Toolbar" style) ──────────────────
+   Smooth rounded-squircle keys with a soft top-down light, a crisp top rim,
+   and layered ambient shadows so they read as premium 3D caps sitting in a
+   recessed tray. Hover lifts a key; click presses it in; the selected key
+   rests recessed; a notification glows the key with the accent colour.
+   Cap tones derive from the sidebar colour (works in light or dark themes),
+   the glow from the accent colour. */
 .service-icon,
 .settings-icon {
-  /* Vintage mechanical keycap (IBM Model M / retro beige): a tall, matte
-     cream cap with a deep spherical dish, chunky beveled walls and a dark
-     engraved legend. Fixed cream palette so the retro identity stays put
-     whatever the theme colour; only the notification backlight uses accent. */
-  --key-wall-top: #d6ccae;
-  --key-wall-bottom: #b3a683;
-  --key-base: #7d7157;
-  --key-face-top: #ece5d1;
-  --key-face-bottom: #dbd0b6;
-  --key-legend: #453d29;
+  --k-top: color-mix(in srgb, var(--sidebar-color) 60%, #ffffff 40%);
+  --k-bottom: color-mix(in srgb, var(--sidebar-color) 82%, #000000 18%);
+  --k-rim: color-mix(in srgb, #ffffff 26%, transparent);
 
   display: flex;
   align-items: center;
   justify-content: center;
   height: var(--icon-size);
   cursor: pointer;
-  border-radius: 7px;
-  /* Beveled side walls: catching light at the top rim, shadowed at the front. */
-  background: linear-gradient(180deg, var(--key-wall-top), var(--key-wall-bottom));
-  /* Tall solid extrusion (key height) + hard contact shadow on the board. */
-  box-shadow: 0 5px 0 var(--key-base), 0 8px 9px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition: transform 0.05s ease-out, box-shadow 0.05s ease-out;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 75% at 50% -12%, rgba(255, 255, 255, 0.28), transparent 62%),
+    linear-gradient(180deg, var(--k-top), var(--k-bottom));
+  box-shadow:
+    inset 0 1px 0 var(--k-rim),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.22),
+    0 4px 9px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.13s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.13s ease, background 0.15s ease;
   user-select: none;
   position: relative;
   flex-shrink: 0;
 }
-
-/* The dished top face. Inset more at the bottom so the tall front wall shows
-   (the cap sculpts upward). Spherical dish via a soft top sheen + bottom
-   shade; matte finish, no glossy hotspot. */
-.service-icon::before,
-.settings-icon::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  top: 2px;
-  bottom: 6px;
-  border-radius: 5px 5px 6px 6px;
-  background:
-    radial-gradient(115% 80% at 50% 8%, rgba(255, 255, 255, 0.5), transparent 60%),
-    linear-gradient(180deg, var(--key-face-top), var(--key-face-bottom));
-  box-shadow: inset 0 2px 2px rgba(255, 255, 255, 0.55),
-    inset 0 -7px 9px rgba(90, 74, 40, 0.28);
-  pointer-events: none;
-  z-index: 0;
-}
-/* Keep the legend and its badge above the sculpted face. */
+/* Keep the legend and badge above the cap's gradient layers. */
 .service-icon .glyph-wrap,
 .settings-icon .glyph-wrap,
 .service-icon .label,
@@ -201,80 +190,84 @@ body {
   z-index: 1;
 }
 
-/* Expanded board: legends left-aligned so labels can sit beside them. */
+/* Expanded tray: legends left-aligned so labels can sit beside them. */
 #sidebar.expanded .service-icon,
 #sidebar.expanded .settings-icon {
   justify-content: flex-start;
-  padding-left: 4px;
+  padding-left: 6px;
 }
 
-/* Hover: the top face catches a bit more light. */
-.service-icon:hover::before,
-.settings-icon:hover::before {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--sidebar-color) 60%, #ffffff 40%),
-    var(--key-face-bottom));
+/* Hover: the key lifts off the tray, shadow deepens and spreads. */
+.service-icon:hover,
+.settings-icon:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.22),
+    0 9px 18px rgba(0, 0, 0, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.34);
 }
 
 .service-icon:focus-visible,
 .settings-icon:focus-visible {
   outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
-/* Active service: the cap rests held partway down, its face accent-tinted. */
+/* Selected service: the key rests pressed into the tray (recessed), with a
+   faint accent-tinted top so it reads as "on". */
 .service-icon.active,
 .settings-icon.active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--key-base), 0 2px 4px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-.service-icon.active::before,
-.settings-icon.active::before {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--accent-color) 28%, var(--key-face-top)),
-    color-mix(in srgb, var(--accent-color) 12%, var(--key-face-bottom)));
+  --k-top: color-mix(in srgb, var(--accent-color) 22%, var(--sidebar-color));
+  --k-bottom: color-mix(in srgb, var(--accent-color) 8%, var(--sidebar-color));
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
-/* Press: the cap slams flush onto the board (walls collapse). Kept after
-   .active so a click always reads as a full press. */
+/* Press: any key pushes in on click. After .active so a click always reads
+   as a press. */
 .service-icon:active,
 .settings-icon:active {
-  transform: translateY(4px);
-  box-shadow: 0 0 0 var(--key-base), 0 1px 2px rgba(0, 0, 0, 0.6),
-    inset 0 2px 4px rgba(0, 0, 0, 0.45);
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 3px 7px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 1px rgba(0, 0, 0, 0.3);
 }
 
-/* Backlit key: a notification drives an LED behind the cap — the accent
-   glows out from under it and floods the top face, breathing slowly. */
+/* Notification: the key lights up with a soft accent glow that breathes. */
 .service-icon:has(.badge) {
-  animation: key-backlight 2.4s ease-in-out infinite;
+  --k-top: color-mix(in srgb, var(--accent-color) 26%, var(--sidebar-color));
+  --k-bottom: color-mix(in srgb, var(--accent-color) 12%, var(--sidebar-color));
+  animation: key-glow 2.4s ease-in-out infinite;
 }
-.service-icon:has(.badge)::before {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--accent-color) 42%, var(--key-face-top)),
-    color-mix(in srgb, var(--accent-color) 22%, var(--key-face-bottom)));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 0 14px color-mix(in srgb, var(--accent-color) 60%, transparent);
-}
-@keyframes key-backlight {
+@keyframes key-glow {
   0%, 100% {
-    box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
-      0 0 9px 0 color-mix(in srgb, var(--accent-color) 50%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    box-shadow:
+      inset 0 1px 0 var(--k-rim),
+      inset 0 -3px 5px rgba(0, 0, 0, 0.22),
+      0 4px 9px rgba(0, 0, 0, 0.4),
+      0 0 10px 0 color-mix(in srgb, var(--accent-color) 45%, transparent);
   }
   50% {
-    box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
-      0 0 22px 5px color-mix(in srgb, var(--accent-color) 85%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    box-shadow:
+      inset 0 1px 0 var(--k-rim),
+      inset 0 -3px 5px rgba(0, 0, 0, 0.22),
+      0 4px 9px rgba(0, 0, 0, 0.4),
+      0 0 20px 4px color-mix(in srgb, var(--accent-color) 80%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .service-icon:has(.badge) {
     animation: none;
-    box-shadow: 0 4px 0 var(--key-base), 0 7px 7px rgba(0, 0, 0, 0.55),
-      0 0 16px 2px color-mix(in srgb, var(--accent-color) 70%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    box-shadow:
+      inset 0 1px 0 var(--k-rim),
+      inset 0 -3px 5px rgba(0, 0, 0, 0.22),
+      0 4px 9px rgba(0, 0, 0, 0.4),
+      0 0 16px 2px color-mix(in srgb, var(--accent-color) 70%, transparent);
   }
 }
 
@@ -304,12 +297,12 @@ body {
   pointer-events: none;
 }
 
-/* Key legends: dark engraved-look on the cream cap at rest, lit to full
-   colour when the key is hovered, active, or backlit by a notification. */
+/* Key legends: light monochrome on the dark cap at rest, lit to full colour
+   when the key is hovered, active, or lit by a notification. */
 .service-icon .glyph,
 .service-icon .icon-img {
-  filter: grayscale(1) brightness(0.42) contrast(1.1);
-  opacity: 0.9;
+  filter: grayscale(1);
+  opacity: 0.82;
   transition: filter 0.18s ease, opacity 0.18s ease;
 }
 .service-icon:hover .glyph,
@@ -326,15 +319,13 @@ body {
   text-shadow: 0 0 9px color-mix(in srgb, var(--accent-color) 80%, transparent);
 }
 
-/* Legend text on the cap: dark engraved-look, slightly condensed uppercase
-   for that retro keyboard-legend feel. Hidden while the sidebar is compact. */
+/* Legend text on the cap. Hidden while the sidebar is compact. */
 .label {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   margin-left: 10px;
-  color: var(--key-legend);
+  color: var(--text);
   opacity: 0;
   max-width: 0;
   overflow: hidden;
@@ -417,8 +408,7 @@ body {
 }
 
 .settings-icon .glyph {
-  color: var(--key-legend);
-  opacity: 0.85;
+  color: var(--text-dim);
 }
 
 /* Empty state */
