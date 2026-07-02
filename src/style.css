@@ -119,12 +119,12 @@ body {
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   width: 100%;
-  padding: 0 4px;
+  padding: 6px 5px;
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -133,51 +133,100 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  padding: 4px;
-  gap: 2px;
+  padding: 6px 5px;
+  gap: 8px;
 }
 
-/* Service / settings icon rows */
+/* ── Keyboard concept ──────────────────────────────────────────────────
+   Each service is a mechanical keycap: a raised cap sitting on the board,
+   that travels down when pressed, and lights up from behind (RGB backlight)
+   when it has a notification. Cap shades are derived from the user's sidebar
+   colour, the backlight from the accent colour, so both follow the theme. */
 .service-icon,
 .settings-icon {
+  --key-top: color-mix(in srgb, var(--sidebar-color) 80%, #ffffff 20%);
+  --key-bottom: color-mix(in srgb, var(--sidebar-color) 96%, #000000 4%);
+  --key-skirt: color-mix(in srgb, var(--sidebar-color) 55%, #000000 45%);
+  --key-edge: color-mix(in srgb, #ffffff 14%, transparent);
+
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   height: var(--icon-size);
   cursor: pointer;
-  border-radius: 8px;
-  transition: background 0.15s, box-shadow 0.15s;
+  border-radius: 7px;
+  border: 1px solid var(--key-edge);
+  background: linear-gradient(180deg, var(--key-top), var(--key-bottom));
+  box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
   user-select: none;
   position: relative;
   flex-shrink: 0;
 }
+/* Expanded board: legends left-aligned so labels can sit beside them. */
+#sidebar.expanded .service-icon,
+#sidebar.expanded .settings-icon {
+  justify-content: flex-start;
+  padding-left: 4px;
+}
 
-/* No highlight blob on hover — the icon colouring in (grayscale → color,
-   see below) is the hover cue. Only the chrome-less settings/toggle rows,
-   whose glyphs don't colour, get a whisper of background. */
+/* Hover: the cap lights a touch brighter (no highlight blob). */
+.service-icon:hover,
 .settings-icon:hover {
-  background: rgba(255, 255, 255, 0.06);
+  --key-top: color-mix(in srgb, var(--sidebar-color) 68%, #ffffff 32%);
 }
 
 .service-icon:focus-visible,
 .settings-icon:focus-visible {
   outline: 2px solid var(--accent-color);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
-/* Active state: a single slim accent bar on the left edge. No tinted
-   rounded highlight — just the coloured icon and this marker. */
-.service-icon.active::after,
-.settings-icon.active::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 56%;
-  border-radius: 0 2px 2px 0;
-  background: var(--accent-color);
+/* Active service: the key rests held-down, with a faint accent-lit top. */
+.service-icon.active,
+.settings-icon.active {
+  --key-top: color-mix(in srgb, var(--accent-color) 24%, var(--sidebar-color));
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--key-skirt), 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 5px rgba(0, 0, 0, 0.4);
+}
+
+/* Backlit key: a notification lights the cap from behind and makes it
+   breathe — the RGB backlight. Kept last so the glow wins over active. */
+.service-icon:has(.badge) {
+  --key-top: color-mix(in srgb, var(--accent-color) 30%, var(--sidebar-color));
+  border-color: color-mix(in srgb, var(--accent-color) 60%, transparent);
+  animation: key-backlight 2.1s ease-in-out infinite;
+}
+
+/* Press: the cap travels down onto the board (skirt collapses). Placed
+   after .active so a click always reads as a press. */
+.service-icon:active,
+.settings-icon:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--key-skirt), 0 1px 2px rgba(0, 0, 0, 0.5),
+    inset 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes key-backlight {
+  0%, 100% {
+    box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45),
+      0 0 10px 0 color-mix(in srgb, var(--accent-color) 55%, transparent),
+      inset 0 0 8px color-mix(in srgb, var(--accent-color) 32%, transparent);
+  }
+  50% {
+    box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45),
+      0 0 20px 4px color-mix(in srgb, var(--accent-color) 85%, transparent),
+      inset 0 0 13px color-mix(in srgb, var(--accent-color) 55%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .service-icon:has(.badge) {
+    animation: none;
+    box-shadow: 0 3px 0 var(--key-skirt), 0 5px 8px rgba(0, 0, 0, 0.45),
+      0 0 16px 2px color-mix(in srgb, var(--accent-color) 70%, transparent),
+      inset 0 0 10px color-mix(in srgb, var(--accent-color) 45%, transparent);
+  }
 }
 
 /* Glyph + its overlays stay together so dot/badge are always anchored */
@@ -206,19 +255,20 @@ body {
   pointer-events: none;
 }
 
-/* Épuré: service icons are muted monochrome at rest, and only bloom into
-   full color for the hovered or active service. Cuts the emoji rainbow down
-   to a single calm sidebar. */
+/* Key legends: muted monochrome at rest, lit to full colour when the key is
+   hovered, active, or backlit by a notification (as if the LED lights it). */
 .service-icon .glyph,
 .service-icon .icon-img {
   filter: grayscale(1);
-  opacity: 0.7;
+  opacity: 0.72;
   transition: filter 0.18s ease, opacity 0.18s ease;
 }
 .service-icon:hover .glyph,
 .service-icon:hover .icon-img,
 .service-icon.active .glyph,
-.service-icon.active .icon-img {
+.service-icon.active .icon-img,
+.service-icon:has(.badge) .glyph,
+.service-icon:has(.badge) .icon-img {
   filter: grayscale(0);
   opacity: 1;
 }
