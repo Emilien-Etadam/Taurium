@@ -116,21 +116,23 @@ body {
   padding: 12px 6px;
 }
 
+/* The case (chassis) the keys sit in: a matte dark charcoal shell with a
+   soft top rim of light and its own drop shadow, like the reference body. */
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   width: 100%;
-  /* Recessed tray the 3D keys sit in. */
   margin: 6px 5px;
-  padding: 9px 6px;
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--sidebar-color) 82%, #000000 18%);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  padding: 10px 7px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #303036, #212125);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 8px 18px rgba(0, 0, 0, 0.5);
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -139,42 +141,43 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
   margin: 0 5px 6px;
-  padding: 9px 6px;
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--sidebar-color) 82%, #000000 18%);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  padding: 10px 7px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #303036, #212125);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 8px 18px rgba(0, 0, 0, 0.5);
 }
 
-/* ── 3D toolbar keys (cerpow "3D Figma Toolbar" style) ──────────────────
-   Smooth rounded-squircle keys with a soft top-down light, a crisp top rim,
-   and layered ambient shadows so they read as premium 3D caps sitting in a
-   recessed tray. Hover lifts a key; click presses it in; the selected key
-   rests recessed; a notification glows the key with the accent colour.
-   Cap tones derive from the sidebar colour (works in light or dark themes),
-   the glow from the accent colour. */
+/* ── 3D toolbar keys (cerpow "3D Figma Toolbar") ───────────────────────
+   Matte charcoal squircle caps sitting in the wells of a dark case. Neutral
+   with light line-style legends at rest. The selected service becomes a
+   saturated, backlit accent cap with light bleeding onto the case below it;
+   a notification lights a glowing accent LED at the key's base. Cap tones
+   are a fixed neutral charcoal (the reference identity); only the lit states
+   use the accent colour. */
 .service-icon,
 .settings-icon {
-  --k-top: color-mix(in srgb, var(--sidebar-color) 60%, #ffffff 40%);
-  --k-bottom: color-mix(in srgb, var(--sidebar-color) 82%, #000000 18%);
-  --k-rim: color-mix(in srgb, #ffffff 26%, transparent);
+  --k-face-top: #3b3b42;
+  --k-face-bottom: #292a30;
+  --k-rim: rgba(255, 255, 255, 0.10);
 
   display: flex;
   align-items: center;
   justify-content: center;
   height: var(--icon-size);
   cursor: pointer;
-  border-radius: 14px;
+  border-radius: 15px;
   background:
-    radial-gradient(120% 75% at 50% -12%, rgba(255, 255, 255, 0.28), transparent 62%),
-    linear-gradient(180deg, var(--k-top), var(--k-bottom));
+    radial-gradient(130% 80% at 50% -6%, rgba(255, 255, 255, 0.07), transparent 55%),
+    linear-gradient(180deg, var(--k-face-top), var(--k-face-bottom));
   box-shadow:
     inset 0 1px 0 var(--k-rim),
-    inset 0 -3px 5px rgba(0, 0, 0, 0.22),
-    0 4px 9px rgba(0, 0, 0, 0.4),
-    0 1px 2px rgba(0, 0, 0, 0.3);
+    inset 0 -4px 6px rgba(0, 0, 0, 0.38),
+    0 2px 3px rgba(0, 0, 0, 0.5),
+    0 5px 11px rgba(0, 0, 0, 0.45);
   transition: transform 0.13s cubic-bezier(0.2, 0.8, 0.2, 1),
     box-shadow 0.13s ease, background 0.15s ease;
   user-select: none;
@@ -190,22 +193,22 @@ body {
   z-index: 1;
 }
 
-/* Expanded tray: legends left-aligned so labels can sit beside them. */
+/* Expanded case: legends left-aligned so labels can sit beside them. */
 #sidebar.expanded .service-icon,
 #sidebar.expanded .settings-icon {
   justify-content: flex-start;
-  padding-left: 6px;
+  padding-left: 8px;
 }
 
-/* Hover: the key lifts off the tray, shadow deepens and spreads. */
+/* Hover: the cap rises out of its well. */
 .service-icon:hover,
 .settings-icon:hover {
   transform: translateY(-2px);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent),
-    inset 0 -3px 5px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -4px 6px rgba(0, 0, 0, 0.38),
     0 9px 18px rgba(0, 0, 0, 0.5),
-    0 2px 4px rgba(0, 0, 0, 0.34);
+    0 3px 5px rgba(0, 0, 0, 0.4);
 }
 
 .service-icon:focus-visible,
@@ -214,20 +217,70 @@ body {
   outline-offset: 3px;
 }
 
-/* Selected service: the key rests pressed into the tray (recessed), with a
-   faint accent-tinted top so it reads as "on". */
-.service-icon.active,
-.settings-icon.active {
-  --k-top: color-mix(in srgb, var(--accent-color) 22%, var(--sidebar-color));
-  --k-bottom: color-mix(in srgb, var(--accent-color) 8%, var(--sidebar-color));
-  transform: translateY(1px);
+/* Notification: a glowing accent LED at the key's base bleeds onto the case
+   (the reference's status LED); the cap keeps a faint accent rim. */
+.service-icon:has(.badge) {
   box-shadow:
-    inset 0 2px 6px rgba(0, 0, 0, 0.55),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    0 1px 1px rgba(0, 0, 0, 0.3);
+    inset 0 1px 0 var(--k-rim),
+    inset 0 -4px 6px rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 32%, transparent),
+    0 2px 3px rgba(0, 0, 0, 0.5),
+    0 5px 11px rgba(0, 0, 0, 0.45);
+}
+.service-icon:has(.badge)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--accent-color);
+  box-shadow: 0 0 9px 2px color-mix(in srgb, var(--accent-color) 80%, transparent);
+  animation: led-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes led-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .service-icon:has(.badge)::after { animation: none; opacity: 0.9; }
 }
 
-/* Press: any key pushes in on click. After .active so a click always reads
+/* Selected service: a saturated, backlit accent cap. Placed after the
+   notification rules so an active+notified key reads as the lit cap. */
+.service-icon.active,
+.settings-icon.active {
+  --k-face-top: color-mix(in srgb, var(--accent-color) 70%, #ffffff 30%);
+  --k-face-bottom: color-mix(in srgb, var(--accent-color) 90%, #000000 10%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -5px 9px color-mix(in srgb, var(--accent-color) 55%, #000000 45%),
+    0 2px 3px rgba(0, 0, 0, 0.5),
+    0 5px 12px rgba(0, 0, 0, 0.4),
+    0 0 20px 1px color-mix(in srgb, var(--accent-color) 55%, transparent);
+}
+/* Light bleeding from the lit cap onto the case just below it. */
+.service-icon.active::after,
+.settings-icon.active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 46%;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-color) 85%, #ffffff 15%);
+  filter: blur(3px);
+  opacity: 0.85;
+  animation: none;
+  pointer-events: none;
+}
+
+/* Press: the cap pushes down into its well. Last, so a click always reads
    as a press. */
 .service-icon:active,
 .settings-icon:active {
@@ -235,40 +288,7 @@ body {
   box-shadow:
     inset 0 3px 7px rgba(0, 0, 0, 0.55),
     inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    0 1px 1px rgba(0, 0, 0, 0.3);
-}
-
-/* Notification: the key lights up with a soft accent glow that breathes. */
-.service-icon:has(.badge) {
-  --k-top: color-mix(in srgb, var(--accent-color) 26%, var(--sidebar-color));
-  --k-bottom: color-mix(in srgb, var(--accent-color) 12%, var(--sidebar-color));
-  animation: key-glow 2.4s ease-in-out infinite;
-}
-@keyframes key-glow {
-  0%, 100% {
-    box-shadow:
-      inset 0 1px 0 var(--k-rim),
-      inset 0 -3px 5px rgba(0, 0, 0, 0.22),
-      0 4px 9px rgba(0, 0, 0, 0.4),
-      0 0 10px 0 color-mix(in srgb, var(--accent-color) 45%, transparent);
-  }
-  50% {
-    box-shadow:
-      inset 0 1px 0 var(--k-rim),
-      inset 0 -3px 5px rgba(0, 0, 0, 0.22),
-      0 4px 9px rgba(0, 0, 0, 0.4),
-      0 0 20px 4px color-mix(in srgb, var(--accent-color) 80%, transparent);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .service-icon:has(.badge) {
-    animation: none;
-    box-shadow:
-      inset 0 1px 0 var(--k-rim),
-      inset 0 -3px 5px rgba(0, 0, 0, 0.22),
-      0 4px 9px rgba(0, 0, 0, 0.4),
-      0 0 16px 2px color-mix(in srgb, var(--accent-color) 70%, transparent);
-  }
+    0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 /* Glyph + its overlays stay together so dot/badge are always anchored */
@@ -297,26 +317,26 @@ body {
   pointer-events: none;
 }
 
-/* Key legends: light monochrome on the dark cap at rest, lit to full colour
-   when the key is hovered, active, or lit by a notification. */
+/* Key legends: light monochrome line-look on the charcoal cap. On the active
+   accent cap the legend lights up bright white with a soft halo. */
 .service-icon .glyph,
 .service-icon .icon-img {
-  filter: grayscale(1);
-  opacity: 0.82;
+  filter: grayscale(1) brightness(1.5);
+  opacity: 0.7;
   transition: filter 0.18s ease, opacity 0.18s ease;
 }
 .service-icon:hover .glyph,
-.service-icon:hover .icon-img,
-.service-icon.active .glyph,
-.service-icon.active .icon-img,
-.service-icon:has(.badge) .glyph,
-.service-icon:has(.badge) .icon-img {
-  filter: grayscale(0);
-  opacity: 1;
+.service-icon:hover .icon-img {
+  opacity: 0.95;
 }
-/* Backlit legend catches the LED — a soft accent halo around the glyph. */
-.service-icon:has(.badge) .glyph {
-  text-shadow: 0 0 9px color-mix(in srgb, var(--accent-color) 80%, transparent);
+.service-icon.active .glyph {
+  filter: grayscale(1) brightness(2.8);
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+}
+.service-icon.active .icon-img {
+  filter: brightness(1.5);
+  opacity: 1;
 }
 
 /* Legend text on the cap. Hidden while the sidebar is compact. */
