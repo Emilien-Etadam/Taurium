@@ -158,57 +158,24 @@ body {
    a notification lights a glowing accent LED at the key's base. Cap tones
    are a fixed neutral charcoal (the reference identity); only the lit states
    use the accent colour. */
+/* Rows are chromeless hit areas — the SQUARE keycap is the .glyph-wrap.
+   Full-width bars don't read as keys; a keycap is square. */
 .service-icon,
 .settings-icon {
-  --k-face-top: #3b3b42;
-  --k-face-bottom: #292a30;
-  --k-rim: rgba(255, 255, 255, 0.10);
-
   display: flex;
   align-items: center;
   justify-content: center;
-  height: var(--icon-size);
   cursor: pointer;
-  border-radius: 15px;
-  background:
-    radial-gradient(130% 80% at 50% -6%, rgba(255, 255, 255, 0.07), transparent 55%),
-    linear-gradient(180deg, var(--k-face-top), var(--k-face-bottom));
-  box-shadow:
-    inset 0 1px 0 var(--k-rim),
-    inset 0 -4px 6px rgba(0, 0, 0, 0.38),
-    0 2px 3px rgba(0, 0, 0, 0.5),
-    0 5px 11px rgba(0, 0, 0, 0.45);
-  transition: transform 0.13s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.13s ease, background 0.15s ease;
   user-select: none;
   position: relative;
   flex-shrink: 0;
 }
-/* Keep the legend and badge above the cap's gradient layers. */
-.service-icon .glyph-wrap,
-.settings-icon .glyph-wrap,
-.service-icon .label,
-.settings-icon .label {
-  position: relative;
-  z-index: 1;
-}
 
-/* Expanded case: legends left-aligned so labels can sit beside them. */
+/* Expanded case: the cap stays square, the label sits beside it on the case. */
 #sidebar.expanded .service-icon,
 #sidebar.expanded .settings-icon {
   justify-content: flex-start;
-  padding-left: 8px;
-}
-
-/* Hover: the cap rises out of its well. */
-.service-icon:hover,
-.settings-icon:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    inset 0 -4px 6px rgba(0, 0, 0, 0.38),
-    0 9px 18px rgba(0, 0, 0, 0.5),
-    0 3px 5px rgba(0, 0, 0, 0.4);
+  padding-left: 2px;
 }
 
 .service-icon:focus-visible,
@@ -217,78 +184,120 @@ body {
   outline-offset: 3px;
 }
 
-/* Notification: a glowing accent LED at the key's base bleeds onto the case
-   (the reference's status LED); the cap keeps a faint accent rim. */
-.service-icon:has(.badge) {
+/* The keycap: square charcoal cap. Its sculpted top plateau (::before) — a
+   smaller raised face inset from the base, deeper at the front — is what
+   makes it read as a key. */
+.service-icon .glyph-wrap,
+.settings-icon .glyph-wrap {
+  --k-side-top: #3d3d45;
+  --k-side-bottom: #232329;
+  --k-plateau-top: #47474f;
+  --k-plateau-bottom: #313138;
+
+  border-radius: 24%;
+  background: linear-gradient(180deg, var(--k-side-top), var(--k-side-bottom));
   box-shadow:
-    inset 0 1px 0 var(--k-rim),
-    inset 0 -4px 6px rgba(0, 0, 0, 0.38),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 32%, transparent),
-    0 2px 3px rgba(0, 0, 0, 0.5),
-    0 5px 11px rgba(0, 0, 0, 0.45);
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    0 2px 3px rgba(0, 0, 0, 0.55),
+    0 6px 12px rgba(0, 0, 0, 0.45);
+  transition: transform 0.13s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.13s ease;
 }
-.service-icon:has(.badge)::after {
+/* Sculpted top plateau: inset from the base, more at the bottom (front wall
+   visible), with its own soft top light and dished lower shade. */
+.service-icon .glyph-wrap::before,
+.settings-icon .glyph-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 8% 9% 16% 9%;
+  border-radius: 22%;
+  background:
+    radial-gradient(130% 100% at 50% 0%, rgba(255, 255, 255, 0.09), transparent 58%),
+    linear-gradient(180deg, var(--k-plateau-top), var(--k-plateau-bottom));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+}
+
+/* Hover: the cap rises out of its well. */
+.service-icon:hover .glyph-wrap,
+.settings-icon:hover .glyph-wrap {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.17),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    0 8px 16px rgba(0, 0, 0, 0.55),
+    0 3px 5px rgba(0, 0, 0, 0.4);
+}
+
+/* Notification: a glowing accent LED at the base of the cap (the
+   reference's status LED), bleeding onto the case. */
+.service-icon:has(.badge) .glyph-wrap::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: -3px;
-  width: 7px;
-  height: 7px;
+  bottom: -5px;
+  width: 6px;
+  height: 6px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: var(--accent-color);
-  box-shadow: 0 0 9px 2px color-mix(in srgb, var(--accent-color) 80%, transparent);
+  background: color-mix(in srgb, var(--accent-color) 80%, #ffffff 20%);
+  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-color) 80%, transparent);
   animation: led-pulse 2s ease-in-out infinite;
   pointer-events: none;
 }
 @keyframes led-pulse {
-  0%, 100% { opacity: 0.5; }
+  0%, 100% { opacity: 0.45; }
   50% { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .service-icon:has(.badge)::after { animation: none; opacity: 0.9; }
+  .service-icon:has(.badge) .glyph-wrap::after { animation: none; opacity: 0.9; }
 }
 
-/* Selected service: a saturated, backlit accent cap. Placed after the
-   notification rules so an active+notified key reads as the lit cap. */
-.service-icon.active,
-.settings-icon.active {
-  --k-face-top: color-mix(in srgb, var(--accent-color) 70%, #ffffff 30%);
-  --k-face-bottom: color-mix(in srgb, var(--accent-color) 90%, #000000 10%);
+/* Selected service: the saturated, backlit accent keycap — lit walls, lit
+   plateau, glow spilling around the cap and bleeding below it. */
+.service-icon.active .glyph-wrap,
+.settings-icon.active .glyph-wrap {
+  --k-side-top: color-mix(in srgb, var(--accent-color) 72%, #ffffff 28%);
+  --k-side-bottom: color-mix(in srgb, var(--accent-color) 75%, #000000 25%);
+  --k-plateau-top: color-mix(in srgb, var(--accent-color) 60%, #ffffff 40%);
+  --k-plateau-bottom: color-mix(in srgb, var(--accent-color) 92%, #000000 8%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -5px 9px color-mix(in srgb, var(--accent-color) 55%, #000000 45%),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 3px color-mix(in srgb, var(--accent-color) 50%, #000000 50%),
     0 2px 3px rgba(0, 0, 0, 0.5),
-    0 5px 12px rgba(0, 0, 0, 0.4),
-    0 0 20px 1px color-mix(in srgb, var(--accent-color) 55%, transparent);
+    0 6px 12px rgba(0, 0, 0, 0.4),
+    0 0 18px 1px color-mix(in srgb, var(--accent-color) 60%, transparent);
 }
-/* Light bleeding from the lit cap onto the case just below it. */
-.service-icon.active::after,
-.settings-icon.active::after {
+/* Light bleeding from the lit cap onto the case below (overrides the LED
+   for an active+notified key: the cap itself is already lit). */
+.service-icon.active .glyph-wrap::after,
+.settings-icon.active .glyph-wrap::after {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: -4px;
-  width: 46%;
-  height: 7px;
+  bottom: -6px;
+  width: 55%;
+  height: 6px;
   transform: translateX(-50%);
   border-radius: 50%;
   background: color-mix(in srgb, var(--accent-color) 85%, #ffffff 15%);
   filter: blur(3px);
-  opacity: 0.85;
+  opacity: 0.9;
   animation: none;
   pointer-events: none;
 }
 
-/* Press: the cap pushes down into its well. Last, so a click always reads
+/* Press: the cap travels down into its well. Last, so a click always reads
    as a press. */
-.service-icon:active,
-.settings-icon:active {
+.service-icon:active .glyph-wrap,
+.settings-icon:active .glyph-wrap {
   transform: translateY(2px);
   box-shadow:
-    inset 0 3px 7px rgba(0, 0, 0, 0.55),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    0 1px 1px rgba(0, 0, 0, 0.4);
+    inset 0 2px 5px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.45);
 }
 
 /* Glyph + its overlays stay together so dot/badge are always anchored */
@@ -301,6 +310,13 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+/* Legend paints above the sculpted plateau (an absolutely-positioned
+   pseudo otherwise stacks over static content). */
+.glyph,
+.icon-img {
+  position: relative;
+  z-index: 1;
 }
 
 .glyph {
