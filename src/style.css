@@ -116,15 +116,29 @@ body {
   padding: 12px 6px;
 }
 
+/* The case (chassis) the keys sit in: a matte dark charcoal shell with a
+   soft top rim of light and its own drop shadow, like the reference body. */
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  flex: 1;
+  gap: 10px;
+  /* The case hugs its keys instead of stretching to fill the column; it can
+     still shrink (and scroll) when there are more keys than fit. */
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  width: 100%;
-  padding: 0 4px;
+  margin: 6px 5px;
+  padding: 10px 7px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #303036, #212125);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 8px 18px rgba(0, 0, 0, 0.5);
+}
+/* No services (and no filter hint): no empty shell. */
+.service-list:empty {
+  display: none;
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -133,41 +147,164 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  padding: 4px;
-  gap: 2px;
+  gap: 10px;
+  /* Pinned to the bottom now that the key case no longer fills the column. */
+  margin: auto 5px 6px;
+  padding: 10px 7px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #303036, #212125);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 8px 18px rgba(0, 0, 0, 0.5);
 }
 
-/* Service / settings icon rows */
+/* ── 3D toolbar keys (cerpow "3D Figma Toolbar") ───────────────────────
+   Matte charcoal squircle caps sitting in the wells of a dark case. Neutral
+   with light line-style legends at rest. The selected service becomes a
+   saturated, backlit accent cap with light bleeding onto the case below it;
+   a notification lights a glowing accent LED at the key's base. Cap tones
+   are a fixed neutral charcoal (the reference identity); only the lit states
+   use the accent colour. */
+/* Rows are chromeless hit areas — the SQUARE keycap is the .glyph-wrap.
+   Full-width bars don't read as keys; a keycap is square. */
 .service-icon,
 .settings-icon {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  height: var(--icon-size);
+  justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
-  transition: background 0.15s, box-shadow 0.15s;
   user-select: none;
   position: relative;
   flex-shrink: 0;
 }
 
-.service-icon:hover,
-.settings-icon:hover {
-  background: rgba(255, 255, 255, 0.08);
+/* Expanded case: the cap stays square, the label sits beside it on the case. */
+#sidebar.expanded .service-icon,
+#sidebar.expanded .settings-icon {
+  justify-content: flex-start;
+  padding-left: 2px;
 }
 
 .service-icon:focus-visible,
 .settings-icon:focus-visible {
   outline: 2px solid var(--accent-color);
-  outline-offset: -2px;
+  outline-offset: 3px;
 }
 
-/* Active state: inset bar (no layout impact, nothing shifts) */
-.service-icon.active,
-.settings-icon.active {
-  background: rgba(233, 69, 96, 0.15);
-  box-shadow: inset 3px 0 0 var(--accent-color);
+/* The keycap: square charcoal cap. Its sculpted top plateau (::before) — a
+   smaller raised face inset from the base, deeper at the front — is what
+   makes it read as a key. */
+.service-icon .glyph-wrap,
+.settings-icon .glyph-wrap {
+  --k-side-top: #3d3d45;
+  --k-side-bottom: #232329;
+  --k-plateau-top: #47474f;
+  --k-plateau-bottom: #313138;
+
+  border-radius: 24%;
+  background: linear-gradient(180deg, var(--k-side-top), var(--k-side-bottom));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    0 2px 3px rgba(0, 0, 0, 0.55),
+    0 6px 12px rgba(0, 0, 0, 0.45);
+  transition: transform 0.13s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.13s ease;
+}
+/* Sculpted top plateau: inset from the base, more at the bottom (front wall
+   visible), with its own soft top light and dished lower shade. */
+.service-icon .glyph-wrap::before,
+.settings-icon .glyph-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 8% 9% 16% 9%;
+  border-radius: 22%;
+  background:
+    radial-gradient(130% 100% at 50% 0%, rgba(255, 255, 255, 0.09), transparent 58%),
+    linear-gradient(180deg, var(--k-plateau-top), var(--k-plateau-bottom));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.32);
+  pointer-events: none;
+}
+
+/* Hover: the cap rises out of its well. */
+.service-icon:hover .glyph-wrap,
+.settings-icon:hover .glyph-wrap {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.17),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    0 8px 16px rgba(0, 0, 0, 0.55),
+    0 3px 5px rgba(0, 0, 0, 0.4);
+}
+
+/* Notification: a glowing accent LED at the base of the cap (the
+   reference's status LED), bleeding onto the case. */
+.service-icon:has(.badge) .glyph-wrap::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 6px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-color) 80%, #ffffff 20%);
+  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-color) 80%, transparent);
+  animation: led-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes led-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .service-icon:has(.badge) .glyph-wrap::after { animation: none; opacity: 0.9; }
+}
+
+/* Selected service: the saturated, backlit accent keycap — lit walls, lit
+   plateau, glow spilling around the cap and bleeding below it. */
+.service-icon.active .glyph-wrap,
+.settings-icon.active .glyph-wrap {
+  --k-side-top: color-mix(in srgb, var(--accent-color) 72%, #ffffff 28%);
+  --k-side-bottom: color-mix(in srgb, var(--accent-color) 75%, #000000 25%);
+  --k-plateau-top: color-mix(in srgb, var(--accent-color) 60%, #ffffff 40%);
+  --k-plateau-bottom: color-mix(in srgb, var(--accent-color) 92%, #000000 8%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 3px color-mix(in srgb, var(--accent-color) 50%, #000000 50%),
+    0 2px 3px rgba(0, 0, 0, 0.5),
+    0 6px 12px rgba(0, 0, 0, 0.4),
+    0 0 18px 1px color-mix(in srgb, var(--accent-color) 60%, transparent);
+}
+/* Light bleeding from the lit cap onto the case below (overrides the LED
+   for an active+notified key: the cap itself is already lit). */
+.service-icon.active .glyph-wrap::after,
+.settings-icon.active .glyph-wrap::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 55%;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent-color) 85%, #ffffff 15%);
+  filter: blur(3px);
+  opacity: 0.9;
+  animation: none;
+  pointer-events: none;
+}
+
+/* Press: the cap travels down into its well. Last, so a click always reads
+   as a press. */
+.service-icon:active .glyph-wrap,
+.settings-icon:active .glyph-wrap {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.45);
 }
 
 /* Glyph + its overlays stay together so dot/badge are always anchored */
@@ -180,6 +317,13 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+/* Legend paints above the sculpted plateau (an absolutely-positioned
+   pseudo otherwise stacks over static content). */
+.glyph,
+.icon-img {
+  position: relative;
+  z-index: 1;
 }
 
 .glyph {
@@ -196,9 +340,32 @@ body {
   pointer-events: none;
 }
 
-/* Text label (hidden while the sidebar is compact) */
+/* Key legends: light monochrome line-look on the charcoal cap. On the active
+   accent cap the legend lights up bright white with a soft halo. */
+.service-icon .glyph,
+.service-icon .icon-img {
+  filter: grayscale(1) brightness(1.5);
+  opacity: 0.7;
+  transition: filter 0.18s ease, opacity 0.18s ease;
+}
+.service-icon:hover .glyph,
+.service-icon:hover .icon-img {
+  opacity: 0.95;
+}
+.service-icon.active .glyph {
+  filter: grayscale(1) brightness(2.8);
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
+}
+.service-icon.active .icon-img {
+  filter: brightness(1.5);
+  opacity: 1;
+}
+
+/* Legend text on the cap. Hidden while the sidebar is compact. */
 .label {
   font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   margin-left: 10px;
   color: var(--text);
@@ -208,7 +375,10 @@ body {
   transition: opacity 0.15s;
 }
 
-/* Status dot: bottom-right of the glyph */
+/* Status dot: bottom-right of the glyph.
+   Only the transient "loading" spinner is shown — the old permanent green
+   "loaded" dot was pure noise (every opened service just stayed green), so
+   the loaded/idle states render nothing. */
 .status-dot {
   position: absolute;
   right: 3px;
@@ -216,11 +386,11 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 2px solid var(--sidebar-color);
   box-sizing: content-box;
 }
-.status-dot.loaded {
-  background: #2ecc71;
+.status-dot.loaded,
+.status-dot.idle {
+  display: none;
 }
 .status-dot.loading {
   background: transparent;
@@ -228,26 +398,25 @@ body {
   border-top-color: var(--accent-color);
   animation: spin 0.7s linear infinite;
 }
-.status-dot.idle {
-  background: rgba(255, 255, 255, 0.18);
-}
 
-/* Notification badge: top-right of the glyph */
+/* Notification badge: top-right of the glyph. A plain solid accent pill —
+   no glow, no pulse, no bounce. Against the muted grayscale icons it stands
+   out on its own. */
 .badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -4px;
+  right: -4px;
   background: var(--accent-color);
   color: #fff;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 5px;
   line-height: 1;
   border: 2px solid var(--sidebar-color);
   box-sizing: border-box;
