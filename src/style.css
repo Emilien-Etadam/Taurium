@@ -122,10 +122,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex: 1;
+  /* The case hugs its keys instead of stretching to fill the column; it can
+     still shrink (and scroll) when there are more keys than fit. */
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  width: 100%;
   margin: 6px 5px;
   padding: 10px 7px;
   border-radius: 22px;
@@ -133,6 +135,10 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
     inset 0 0 0 1px rgba(0, 0, 0, 0.45),
     0 8px 18px rgba(0, 0, 0, 0.5);
+}
+/* No services (and no filter hint): no empty shell. */
+.service-list:empty {
+  display: none;
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -142,7 +148,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 0 5px 6px;
+  /* Pinned to the bottom now that the key case no longer fills the column. */
+  margin: auto 5px 6px;
   padding: 10px 7px;
   border-radius: 22px;
   background: linear-gradient(180deg, #303036, #212125);
