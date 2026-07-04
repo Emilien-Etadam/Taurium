@@ -357,7 +357,10 @@ pub fn run() {
                 "settings",
                 WebviewUrl::App("settings.html".into()),
             )
-            .initialization_script(TAURI_INVOKE_SHIM);
+            .initialization_script(TAURI_INVOKE_SHIM)
+            // The built-in drag-drop handler would swallow the HTML5 drag &
+            // drop used to reorder services on Windows.
+            .disable_drag_drop_handler();
             let settings_webview = window.add_child(
                 settings_builder,
                 LogicalPosition::new(webviews::SIDEBAR_WIDTH, 0.0),

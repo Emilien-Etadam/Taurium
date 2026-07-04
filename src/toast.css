@@ -39,3 +39,9 @@
   background: #3a1f2b;
   border-color: #e94560;
 }
+
+.toast-success {
+  background: #16281f;
+  border-color: #2ecc71;
+  color: #d3f5e0;
+}

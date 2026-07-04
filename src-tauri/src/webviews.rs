@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Instant;
-use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
+use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::config::{extract_badge_count, load_preferences, Service, ServicesLoadInfo};
@@ -116,6 +116,91 @@ pub fn current_sidebar_width(state: &WebviewState) -> f64 {
 
 fn is_meaningful_page_url(url: &str) -> bool {
     !url.is_empty() && url != "about:blank"
+}
+
+/// What to do when a service page asks for a new window (`window.open`,
+/// `target="_blank"`). Webviews never open real windows in Taurium.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum NewWindowAction {
+    /// Hand the URL to the system default browser.
+    OpenExternal,
+    /// `blob:`/`data:` URLs only exist inside the calling page: turn the
+    /// request into an in-page `<a download>` click so it flows through the
+    /// download handler instead.
+    DownloadInPage,
+    /// Anything else (`about:blank`, `javascript:`, ...) is dropped.
+    Ignore,
+}
+
+pub(crate) fn classify_new_window_scheme(scheme: &str) -> NewWindowAction {
+    match scheme {
+        "http" | "https" => NewWindowAction::OpenExternal,
+        "blob" | "data" => NewWindowAction::DownloadInPage,
+        _ => NewWindowAction::Ignore,
+    }
+}
+
+/// JS snippet that downloads `url` from inside the page via a synthetic
+/// `<a download>` click (used for blob:/data: URLs that can't leave the page).
+pub(crate) fn trigger_in_page_download_js(url: &str) -> String {
+    let safe_url = serde_json::to_string(url).unwrap_or_else(|_| "\"\"".to_string());
+    format!(
+        "try{{const a=document.createElement('a');a.href={safe_url};a.download='';\
+         document.body.appendChild(a);a.click();a.remove();}}catch(e){{}}"
+    )
+}
+
+/// Pick a file name for a download: prefer the name the webview suggested,
+/// then the last URL path segment, then a generic fallback.
+pub(crate) fn download_file_name(url: &Url, suggested: &Path) -> String {
+    let name = suggested
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .or_else(|| {
+            url.path_segments()
+                .and_then(|segments| segments.rev().find(|s| !s.is_empty()))
+                .map(str::to_string)
+        })
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "download".to_string());
+    name.replace(['/', '\\'], "_")
+}
+
+/// Return `dir/file_name`, inserting ` (n)` before the extension until the
+/// path is free (according to `exists`).
+pub(crate) fn unique_download_path(
+    dir: &Path,
+    file_name: &str,
+    exists: impl Fn(&Path) -> bool,
+) -> PathBuf {
+    let first = dir.join(file_name);
+    if !exists(&first) {
+        return first;
+    }
+    let (stem, ext) = match file_name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() => (stem, Some(ext)),
+        _ => (file_name, None),
+    };
+    (1u32..)
+        .map(|n| {
+            dir.join(match ext {
+                Some(ext) => format!("{stem} ({n}).{ext}"),
+                None => format!("{stem} ({n})"),
+            })
+        })
+        .find(|p| !exists(p))
+        .expect("counter is unbounded")
+}
+
+/// Toast the sidebar about a finished download.
+fn notify_download_finished(app: &AppHandle, file_name: &str, success: bool) {
+    if let Some(sidebar) = app.get_webview("sidebar") {
+        let name_json = serde_json::to_string(file_name).unwrap_or_default();
+        let js = format!(
+            "window.__downloadFinished && window.__downloadFinished({name_json}, {success})"
+        );
+        sidebar.eval(&js).ok();
+    }
 }
 
 /// Notify the sidebar that a service webview has finished loading.
@@ -257,8 +342,11 @@ fn create_service_webview_inner(
     let url = WebviewUrl::External("about:blank".parse().unwrap());
     let app_clone = app.clone();
     let app_for_load = app.clone();
+    let app_for_popup = app.clone();
+    let app_for_download = app.clone();
     let sid = service.id.clone();
     let sid_for_load = service.id.clone();
+    let sid_for_popup = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
     let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
@@ -274,6 +362,57 @@ fn create_service_webview_inner(
         })
         .on_document_title_changed(move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
+        })
+        // Tauri's built-in drag-drop handler intercepts drops before the page
+        // sees them, which breaks HTML5 drag & drop inside services on Windows.
+        .disable_drag_drop_handler()
+        .on_new_window(move |url, _features| {
+            match classify_new_window_scheme(url.scheme()) {
+                NewWindowAction::OpenExternal => {
+                    eprintln!("[Taurium] Popup -> system browser: {url}");
+                    if let Err(e) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
+                        eprintln!("[Taurium] Failed to open {url} in browser: {e}");
+                    }
+                }
+                NewWindowAction::DownloadInPage => {
+                    eprintln!(
+                        "[Taurium] Popup on {} URL -> in-page download",
+                        url.scheme()
+                    );
+                    if let Some(wv) = app_for_popup.get_webview(&sid_for_popup) {
+                        wv.eval(trigger_in_page_download_js(url.as_str())).ok();
+                    }
+                }
+                NewWindowAction::Ignore => {
+                    eprintln!("[Taurium] Popup ignored: {url}");
+                }
+            }
+            NewWindowResponse::Deny
+        })
+        .on_download(move |webview, event| {
+            match event {
+                DownloadEvent::Requested { url, destination } => {
+                    let dir = webview
+                        .app_handle()
+                        .path()
+                        .download_dir()
+                        .unwrap_or_else(|_| std::env::temp_dir());
+                    let name = download_file_name(&url, destination);
+                    *destination = unique_download_path(&dir, &name, |p| p.exists());
+                    eprintln!("[Taurium] Download {} -> {}", url, destination.display());
+                }
+                DownloadEvent::Finished { url, path, success } => {
+                    eprintln!("[Taurium] Download finished (success: {success}): {url}");
+                    let name = path
+                        .as_deref()
+                        .and_then(Path::file_name)
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "file".to_string());
+                    notify_download_finished(&app_for_download, &name, success);
+                }
+                _ => {}
+            }
+            true
         });
     let builder = if let Some(ref ua) = service.user_agent {
         builder.user_agent(ua)
@@ -788,10 +927,14 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        compute_service_changes, is_meaningful_page_url, notification_body_for_badge_change,
-        select_webviews_to_hibernate, service_user_agent_changed, window_location_replace_js,
+        classify_new_window_scheme, compute_service_changes, download_file_name,
+        is_meaningful_page_url, notification_body_for_badge_change, select_webviews_to_hibernate,
+        service_user_agent_changed, trigger_in_page_download_js, unique_download_path,
+        window_location_replace_js, NewWindowAction,
     };
     use crate::config::Service;
+    use std::path::{Path, PathBuf};
+    use tauri::Url;
 
     #[test]
     fn test_is_meaningful_page_url() {
@@ -1063,6 +1206,89 @@ mod tests {
                 serde_json::from_str(inner).expect("escaped URL should stay valid JSON string");
             assert_eq!(decoded, original);
         }
+    }
+
+    #[test]
+    fn classify_new_window_scheme_routes_correctly() {
+        assert_eq!(
+            classify_new_window_scheme("http"),
+            NewWindowAction::OpenExternal
+        );
+        assert_eq!(
+            classify_new_window_scheme("https"),
+            NewWindowAction::OpenExternal
+        );
+        assert_eq!(
+            classify_new_window_scheme("blob"),
+            NewWindowAction::DownloadInPage
+        );
+        assert_eq!(
+            classify_new_window_scheme("data"),
+            NewWindowAction::DownloadInPage
+        );
+        assert_eq!(classify_new_window_scheme("about"), NewWindowAction::Ignore);
+        assert_eq!(
+            classify_new_window_scheme("javascript"),
+            NewWindowAction::Ignore
+        );
+    }
+
+    #[test]
+    fn trigger_in_page_download_js_escapes_url() {
+        let js = trigger_in_page_download_js(r#"blob:https://x/y"z"#);
+        assert!(js.starts_with("try{"));
+        assert!(js.contains(r#"a.href="blob:https://x/y\"z""#));
+    }
+
+    #[test]
+    fn download_file_name_prefers_suggested_name() {
+        let url: Url = "https://example.com/files/report.pdf".parse().unwrap();
+        assert_eq!(
+            download_file_name(&url, Path::new("/home/user/Downloads/suggested.pdf")),
+            "suggested.pdf"
+        );
+    }
+
+    #[test]
+    fn download_file_name_falls_back_to_url_segment() {
+        let url: Url = "https://example.com/files/report.pdf?dl=1".parse().unwrap();
+        assert_eq!(download_file_name(&url, Path::new("")), "report.pdf");
+    }
+
+    #[test]
+    fn download_file_name_skips_trailing_slash_segment() {
+        let url: Url = "https://example.com/files/".parse().unwrap();
+        assert_eq!(download_file_name(&url, Path::new("")), "files");
+    }
+
+    #[test]
+    fn download_file_name_generic_fallback() {
+        let url: Url = "blob:https://example.com/1234-5678".parse().unwrap();
+        assert_eq!(download_file_name(&url, Path::new("")), "download");
+    }
+
+    #[test]
+    fn unique_download_path_returns_first_free_name() {
+        let path = unique_download_path(Path::new("/dl"), "file.pdf", |_| false);
+        assert_eq!(path, PathBuf::from("/dl/file.pdf"));
+    }
+
+    #[test]
+    fn unique_download_path_appends_counter_before_extension() {
+        let taken = [
+            PathBuf::from("/dl/file.pdf"),
+            PathBuf::from("/dl/file (1).pdf"),
+        ];
+        let path = unique_download_path(Path::new("/dl"), "file.pdf", |p| {
+            taken.contains(&p.to_path_buf())
+        });
+        assert_eq!(path, PathBuf::from("/dl/file (2).pdf"));
+    }
+
+    #[test]
+    fn unique_download_path_handles_no_extension() {
+        let path = unique_download_path(Path::new("/dl"), "file", |p| p == Path::new("/dl/file"));
+        assert_eq!(path, PathBuf::from("/dl/file (1)"));
     }
 
     #[test]

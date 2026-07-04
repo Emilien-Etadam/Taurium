@@ -450,6 +450,16 @@ window.__reloadSidebar = async function() {
   }
 };
 
+// Download completion callback (called from Rust via eval)
+window.__downloadFinished = function(name, success) {
+  const label = name || "file";
+  if (success) {
+    showToast(`Downloaded: ${label}`, { variant: "success", durationMs: 5000 });
+  } else {
+    showToast(`Download failed: ${label}`, { variant: "error" });
+  }
+};
+
 // Badge update callback (called from Rust via eval)
 window.__updateBadges = function(badges) {
   document.querySelectorAll(".service-icon").forEach((btn) => {
