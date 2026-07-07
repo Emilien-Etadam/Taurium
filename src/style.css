@@ -354,8 +354,7 @@ body {
   display: none;
 }
 .empty-icon {
-  font-size: 20px;
-  font-weight: 300;
+  display: flex;
   color: var(--text-muted);
 }
 .empty-text {

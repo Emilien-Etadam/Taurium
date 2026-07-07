@@ -162,16 +162,31 @@ function renderServices() {
     item.draggable = true;
     item.dataset.index = index;
 
+    // Icônes de chrome : traits fins style Lucide (stroke 1.7, round).
     item.innerHTML = `
-      <span class="drag-handle" title="Glisser pour réordonner">&#9776;</span>
+      <span class="drag-handle" title="Glisser pour réordonner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+          <circle cx="9" cy="6" r="1" /><circle cx="15" cy="6" r="1" />
+          <circle cx="9" cy="12" r="1" /><circle cx="15" cy="12" r="1" />
+          <circle cx="9" cy="18" r="1" /><circle cx="15" cy="18" r="1" />
+        </svg>
+      </span>
       <span class="icon"></span>
       <div class="info">
         <div class="name">${escapeHtml(service.name)}</div>
         <div class="url">${escapeHtml(service.url)}</div>
       </div>
       <div class="actions">
-        <button class="btn-icon edit" title="Modifier">&#9998;</button>
-        <button class="btn-icon delete" title="Supprimer">&#10005;</button>
+        <button class="btn-icon edit" title="Modifier" aria-label="Modifier">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+            <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+          </svg>
+        </button>
+        <button class="btn-icon delete" title="Supprimer" aria-label="Supprimer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" aria-hidden="true">
+            <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+          </svg>
+        </button>
       </div>
     `;
 
