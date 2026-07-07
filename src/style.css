@@ -1,20 +1,22 @@
-/* ── Taurium sidebar — flat, modern, minimal ──────────────────────────────
-   One neutral near-black surface, hairline separators, full-colour service
-   icons. The active service is a soft highlighted pill with a thin accent
-   bar on the window edge. No gradients, no 3D, no glow. */
+/* ── Taurium sidebar — Dieter Rams / Braun ─────────────────────────────────
+   "Weniger, aber besser." A warm light-grey case, round tactile buttons
+   (Braun ET66), hairline seams, and a single functional colour: the accent
+   is used only for the power LED of the active service, notification counts
+   and focus. No decoration, no gradients, no glow. */
 
 :root {
   --icon-size: 40px;
-  --sidebar-width: 64px;
-  --sidebar-expanded: 220px;
-  --sidebar-color: #141416;
-  --accent-color: #6366f1;
+  --sidebar-width: 68px;
+  --sidebar-expanded: 224px;
+  --sidebar-color: #e8e6e2; /* case */
+  --accent-color: #e8500b; /* Braun orange */
 
-  --text: rgba(255, 255, 255, 0.92);
-  --text-dim: rgba(255, 255, 255, 0.45);
-  --hover: rgba(255, 255, 255, 0.06);
-  --active: rgba(255, 255, 255, 0.1);
-  --hairline: rgba(255, 255, 255, 0.08);
+  --ink: #1e1d1b;
+  --ink-mid: #57544e;
+  --ink-dim: #8f8b84;
+  --seam: #d6d2cb; /* hairline seams */
+  --face: #f7f6f3; /* button face */
+  --face-hover: #fdfdfb;
 }
 
 * {
@@ -25,9 +27,9 @@
 
 body {
   background: var(--sidebar-color);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI",
+    Roboto, Arial, sans-serif;
   font-size: 13px;
   overflow: hidden;
   height: 100vh;
@@ -41,10 +43,10 @@ body {
   width: var(--sidebar-width);
   height: 100vh;
   background: var(--sidebar-color);
-  border-right: 1px solid var(--hairline);
+  border-right: 1px solid var(--seam);
   display: flex;
   flex-direction: column;
-  padding: 8px 0 0;
+  padding: 10px 0 0;
   z-index: 100;
   overflow: hidden;
 }
@@ -65,22 +67,19 @@ body {
   opacity: 1;
 }
 
-/* ── Rows: toggle, services, settings ────────────────────────────────── */
-.sidebar-row,
+/* ── Rows ────────────────────────────────────────────────────────────── */
 .sidebar-toggle,
 .service-icon,
 .settings-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 8px;
-  padding: 4px;
-  border-radius: 10px;
+  margin: 0 10px;
+  padding: 3px 0;
   cursor: pointer;
   user-select: none;
   position: relative;
   flex-shrink: 0;
-  transition: background 0.12s ease;
 }
 #sidebar.expanded .sidebar-toggle,
 #sidebar.expanded .service-icon,
@@ -88,52 +87,72 @@ body {
   justify-content: flex-start;
 }
 
-.sidebar-toggle:hover,
-.service-icon:hover,
-.settings-icon:hover {
-  background: var(--hover);
-}
-
 .sidebar-toggle:focus-visible,
 .service-icon:focus-visible,
 .settings-icon:focus-visible {
   outline: 2px solid var(--accent-color);
-  outline-offset: -2px;
+  outline-offset: 2px;
+  border-radius: 50%;
 }
 
-/* Active service / open settings: highlighted pill + accent edge bar. */
-.service-icon.active,
-.settings-icon.active {
-  background: var(--active);
+/* The button: a round tactile key on the case. */
+.service-icon .glyph-wrap,
+.settings-icon .glyph-wrap {
+  border-radius: 50%;
+  background: var(--face);
+  border: 1px solid var(--seam);
+  box-shadow: 0 1px 1px rgba(30, 29, 27, 0.07);
+  transition: background 0.12s ease, border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.service-icon:hover .glyph-wrap,
+.settings-icon:hover .glyph-wrap {
+  background: var(--face-hover);
+  border-color: #c8c4bc;
+}
+/* Press: the key sinks in. */
+.service-icon:active .glyph-wrap,
+.settings-icon:active .glyph-wrap {
+  box-shadow: inset 0 1px 2px rgba(30, 29, 27, 0.14);
+  background: var(--sidebar-color);
+}
+
+/* Active service: the key stays pressed and its power LED lights up. */
+.service-icon.active .glyph-wrap,
+.settings-icon.active .glyph-wrap {
+  background: var(--sidebar-color);
+  border-color: #c8c4bc;
+  box-shadow: inset 0 1px 2px rgba(30, 29, 27, 0.12);
 }
 .service-icon.active::before,
 .settings-icon.active::before {
   content: "";
   position: absolute;
-  left: -8px; /* flush with the window edge (row margin) */
+  left: -7px;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 55%;
-  border-radius: 0 3px 3px 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
   background: var(--accent-color);
 }
 
-/* ── Expand / collapse toggle ────────────────────────────────────────── */
+/* ── Expand / collapse toggle: a quiet, faceless control ─────────────── */
 .sidebar-toggle {
-  margin-bottom: 4px;
-  color: var(--text-dim);
+  margin-bottom: 6px;
+  color: var(--ink-dim);
+  border-radius: 8px;
 }
 .sidebar-toggle:hover {
-  color: var(--text);
+  color: var(--ink);
 }
 .sidebar-toggle .glyph-wrap {
-  height: 28px;
-  min-height: 28px;
+  height: 26px;
+  min-height: 26px;
 }
 .toggle-chevron {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   display: block;
   transition: transform 0.18s ease;
 }
@@ -144,7 +163,7 @@ body {
 /* ── Quick switcher (visible when expanded, Ctrl+K) ──────────────────── */
 .sidebar-search {
   display: none;
-  padding: 4px 8px 8px;
+  padding: 2px 10px 10px;
   flex-shrink: 0;
 }
 #sidebar.expanded .sidebar-search {
@@ -153,24 +172,24 @@ body {
 .sidebar-search input {
   width: 100%;
   height: 30px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--seam);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text);
+  background: var(--face);
+  color: var(--ink);
   font-size: 12px;
   padding: 0 10px;
   outline: none;
   transition: border-color 0.12s ease;
 }
 .sidebar-search input::placeholder {
-  color: var(--text-dim);
+  color: var(--ink-dim);
 }
 .sidebar-search input:focus {
   border-color: var(--accent-color);
 }
 .no-match {
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   text-align: center;
   padding: 14px 8px;
 }
@@ -179,7 +198,7 @@ body {
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -193,13 +212,13 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
-  padding: 8px 0;
-  border-top: 1px solid var(--hairline);
+  padding: 10px 0;
+  border-top: 1px solid var(--seam);
 }
 
-/* Icon container: square hit area for the glyph, overlays anchor to it. */
+/* Icon container: the round key face. */
 .glyph-wrap {
   position: relative;
   width: var(--icon-size);
@@ -212,58 +231,46 @@ body {
 }
 
 .glyph {
-  font-size: calc(var(--icon-size) * 0.52);
+  font-size: calc(var(--icon-size) * 0.46);
   line-height: 1;
 }
 
-/* Image icons keep their real colours — slightly dimmed at rest. */
+/* Image icons keep their real colours on the neutral key face. */
 .icon-img {
-  width: calc(var(--icon-size) * 0.62);
-  height: calc(var(--icon-size) * 0.62);
-  border-radius: 6px;
+  width: calc(var(--icon-size) * 0.56);
+  height: calc(var(--icon-size) * 0.56);
+  border-radius: 4px;
   object-fit: contain;
   pointer-events: none;
-}
-.service-icon .glyph,
-.service-icon .icon-img {
-  opacity: 0.75;
-  transition: opacity 0.12s ease;
-}
-.service-icon:hover .glyph,
-.service-icon:hover .icon-img,
-.service-icon.active .glyph,
-.service-icon.active .icon-img {
-  opacity: 1;
 }
 
 /* Labels (expanded sidebar only) */
 .label {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
+  letter-spacing: 0.1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-left: 10px;
-  color: var(--text);
+  margin-left: 12px;
+  color: var(--ink-mid);
   opacity: 0;
   max-width: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, color 0.12s ease;
 }
-.settings-icon .label,
-.sidebar-toggle .label {
-  color: var(--text-dim);
-}
+.service-icon:hover .label,
+.service-icon.active .label,
 .settings-icon:hover .label,
 .sidebar-toggle:hover .label {
-  color: var(--text);
+  color: var(--ink);
 }
 
 /* ── Status & notifications ──────────────────────────────────────────── */
 /* Only the transient "loading" spinner is shown; idle/loaded render nothing. */
 .status-dot {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: -1px;
+  bottom: -1px;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -274,13 +281,13 @@ body {
   display: none;
 }
 .status-dot.loading {
-  background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: var(--face);
+  border: 2px solid var(--seam);
   border-top-color: var(--accent-color);
   animation: spin 0.7s linear infinite;
 }
 
-/* Notification badge: small accent pill, top-right of the icon. */
+/* Notification count: a small functional orange disc. */
 .badge {
   position: absolute;
   top: -3px;
@@ -302,31 +309,31 @@ body {
 }
 
 /* ── Group headers ───────────────────────────────────────────────────── */
-/* Fixed height so icons never shift. Compact = hairline; expanded = label. */
+/* Fixed height so buttons never shift. Compact = seam; expanded = label. */
 .group-header {
   position: relative;
   height: 20px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 16px;
   margin-top: 4px;
 }
 .group-line {
   flex: 1;
   height: 1px;
-  background: var(--hairline);
+  background: var(--seam);
   transition: opacity 0.15s ease;
 }
 .group-text {
   position: absolute;
-  left: 16px;
-  right: 12px;
-  font-size: 10px;
+  left: 18px;
+  right: 14px;
+  font-size: 9.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-dim);
+  letter-spacing: 1.2px;
+  color: var(--ink-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -336,28 +343,28 @@ body {
 
 /* ── Settings ────────────────────────────────────────────────────────── */
 .settings-icon {
-  color: var(--text-dim);
+  color: var(--ink-mid);
 }
 .settings-icon:hover,
 .settings-icon.active {
-  color: var(--text);
+  color: var(--ink);
 }
 .settings-icon .gear-icon {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   display: block;
 }
 
 /* "Update available" marker on the settings gear */
 .update-dot {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
+  top: 0;
+  right: 0;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #34d399;
-  border: 2px solid var(--sidebar-color);
+  background: var(--accent-color);
+  border: 2px solid var(--face);
   box-sizing: content-box;
 }
 
@@ -376,11 +383,11 @@ body {
 .empty-icon {
   font-size: 22px;
   font-weight: 300;
-  color: var(--text-dim);
+  color: var(--ink-dim);
 }
 .empty-text {
   font-size: 10px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   text-align: center;
 }
 
@@ -391,7 +398,7 @@ body {
   left: var(--sidebar-width);
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(30, 29, 27, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -403,7 +410,7 @@ body {
 .spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(255, 255, 255, 0.12);
+  border: 3px solid rgba(255, 255, 255, 0.4);
   border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;

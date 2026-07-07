@@ -40,16 +40,17 @@ fn default_icon_size() -> u32 {
     40
 }
 fn default_sidebar_color() -> String {
-    "#141416".to_string()
+    "#e8e6e2".to_string()
 }
 fn default_accent_color() -> String {
-    "#6366f1".to_string()
+    "#e8500b".to_string()
 }
 
-/// Default colors of the pre-0.4 navy theme. Preferences still carrying them
-/// were never customized, so they follow the app onto the current palette.
-const LEGACY_SIDEBAR_COLOR: &str = "#16213e";
-const LEGACY_ACCENT_COLOR: &str = "#e94560";
+/// Default colors of earlier themes (pre-0.4 navy, then the short-lived flat
+/// dark). Preferences still carrying them were never customized, so they
+/// follow the app onto the current palette.
+const LEGACY_SIDEBAR_COLORS: [&str; 2] = ["#16213e", "#141416"];
+const LEGACY_ACCENT_COLORS: [&str; 2] = ["#e94560", "#6366f1"];
 fn default_notifications_enabled() -> bool {
     true
 }
@@ -159,10 +160,16 @@ pub fn load_preferences(app_data_dir: &Path) -> Preferences {
     let path = app_data_dir.join("preferences.json");
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
     let mut prefs: Preferences = serde_json::from_str(&content).unwrap_or_default();
-    if prefs.sidebar_color.eq_ignore_ascii_case(LEGACY_SIDEBAR_COLOR) {
+    if LEGACY_SIDEBAR_COLORS
+        .iter()
+        .any(|c| prefs.sidebar_color.eq_ignore_ascii_case(c))
+    {
         prefs.sidebar_color = default_sidebar_color();
     }
-    if prefs.accent_color.eq_ignore_ascii_case(LEGACY_ACCENT_COLOR) {
+    if LEGACY_ACCENT_COLORS
+        .iter()
+        .any(|c| prefs.accent_color.eq_ignore_ascii_case(c))
+    {
         prefs.accent_color = default_accent_color();
     }
     prefs
@@ -479,8 +486,8 @@ mod tests {
         fs::write(&prefs_path, "").expect("empty preferences.json should be written");
         let empty = load_preferences(&app_data_dir);
         assert_eq!(empty.icon_size, 40);
-        assert_eq!(empty.sidebar_color, "#141416");
-        assert_eq!(empty.accent_color, "#6366f1");
+        assert_eq!(empty.sidebar_color, "#e8e6e2");
+        assert_eq!(empty.accent_color, "#e8500b");
         assert!(empty.notifications_enabled);
 
         // Partial file: only icon_size provided, rest should use defaults.
@@ -488,21 +495,21 @@ mod tests {
             .expect("partial preferences.json should be written");
         let partial = load_preferences(&app_data_dir);
         assert_eq!(partial.icon_size, 72);
-        assert_eq!(partial.sidebar_color, "#141416");
-        assert_eq!(partial.accent_color, "#6366f1");
+        assert_eq!(partial.sidebar_color, "#e8e6e2");
+        assert_eq!(partial.accent_color, "#e8500b");
         assert!(partial.notifications_enabled);
 
-        // Legacy navy defaults saved on disk are migrated to the new palette;
-        // genuinely customized colors are kept as-is.
+        // Legacy default colors saved on disk are migrated to the new
+        // palette; genuinely customized colors are kept as-is.
         let json = serde_json::to_string(&serde_json::json!({
             "sidebar_color": "#16213E",
-            "accent_color": "#e94560"
+            "accent_color": "#6366f1"
         }))
         .expect("preferences JSON should serialize");
         fs::write(&prefs_path, json).expect("legacy preferences.json should be written");
         let legacy = load_preferences(&app_data_dir);
-        assert_eq!(legacy.sidebar_color, "#141416");
-        assert_eq!(legacy.accent_color, "#6366f1");
+        assert_eq!(legacy.sidebar_color, "#e8e6e2");
+        assert_eq!(legacy.accent_color, "#e8500b");
 
         // Full file: all values should be loaded.
         let sidebar_color = "#000000";

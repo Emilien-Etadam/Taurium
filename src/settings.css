@@ -1,16 +1,20 @@
-/* ── Taurium settings — same flat, minimal design language as the sidebar ── */
+/* ── Taurium settings — Dieter Rams / Braun design language ──────────────
+   Warm light-grey case, white faces, hairline seams, charcoal controls.
+   The orange accent is functional only: focus, checked states, errors get
+   their own muted red. */
 
 :root {
-  --bg: #141416;
-  --surface: #1c1c1f;
-  --surface-2: #232327;
-  --accent: #6366f1;
-  --accent-hover: #575ae8;
-  --danger: #f0506e;
-  --text: rgba(255, 255, 255, 0.92);
-  --text-mid: rgba(255, 255, 255, 0.65);
-  --text-dim: rgba(255, 255, 255, 0.45);
-  --hairline: rgba(255, 255, 255, 0.08);
+  --bg: #eceae6;
+  --face: #f9f8f5;
+  --face-2: #f1efeb;
+  --accent: #e8500b;
+  --danger: #c0392b;
+  --ink: #1e1d1b;
+  --ink-mid: #57544e;
+  --ink-dim: #8f8b84;
+  --seam: #d6d2cb;
+  --charcoal: #2a2927;
+  --charcoal-hover: #1e1d1b;
 }
 
 * {
@@ -21,9 +25,9 @@
 
 body {
   background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI",
+    Roboto, Arial, sans-serif;
   height: 100vh;
   overflow-y: auto;
   -webkit-font-smoothing: antialiased;
@@ -32,25 +36,28 @@ body {
 .container {
   max-width: 620px;
   margin: 0 auto;
-  padding: 40px 24px 48px;
+  padding: 44px 24px 56px;
 }
 
 h1 {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.2px;
   margin-bottom: 4px;
 }
 
 h2 {
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 600;
-  margin-bottom: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--ink-mid);
+  margin-bottom: 16px;
 }
 
 .hint {
   font-size: 13px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   margin-bottom: 24px;
 }
 
@@ -66,8 +73,8 @@ h2 {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--face);
+  border: 1px solid var(--seam);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: grab;
@@ -76,7 +83,7 @@ h2 {
 }
 
 .service-item:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: #c8c4bc;
 }
 
 .service-item:active {
@@ -98,7 +105,7 @@ h2 {
 
 .drag-handle {
   cursor: grab;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   font-size: 15px;
   padding: 0 2px;
   user-select: none;
@@ -134,7 +141,7 @@ h2 {
 
 .service-item .url {
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -148,7 +155,7 @@ h2 {
 .btn-icon {
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   cursor: pointer;
   font-size: 15px;
   padding: 5px 7px;
@@ -157,8 +164,8 @@ h2 {
 }
 
 .btn-icon:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text);
+  background: var(--face-2);
+  color: var(--ink);
 }
 
 .btn-icon.delete:hover {
@@ -167,20 +174,21 @@ h2 {
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 .btn {
-  border: none;
+  border: 1px solid var(--seam);
   border-radius: 8px;
   padding: 9px 18px;
   font-size: 13px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
-  color: var(--text);
-  background: var(--surface-2);
-  transition: background 0.12s, border-color 0.12s;
+  color: var(--ink);
+  background: var(--face);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .btn:hover {
-  background: #2b2b30;
+  background: #fdfdfb;
+  border-color: #c8c4bc;
 }
 
 .add-actions {
@@ -204,39 +212,37 @@ h2 {
 .btn-add,
 .btn-catalog {
   width: 100%;
-  background: var(--surface);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  color: var(--text-mid);
+  background: transparent;
+  border: 1px dashed #bcb8b0;
+  color: var(--ink-mid);
 }
 
 .btn-add:hover,
 .btn-catalog:hover {
-  background: var(--surface-2);
-  color: var(--text);
-  border-color: rgba(255, 255, 255, 0.26);
+  background: var(--face);
+  color: var(--ink);
+  border-color: var(--ink-dim);
 }
 
 .btn-save {
-  background: var(--accent);
+  background: var(--charcoal);
+  border-color: var(--charcoal);
   color: #fff;
 }
 
 .btn-save:hover {
-  background: var(--accent-hover);
+  background: var(--charcoal-hover);
+  border-color: var(--charcoal-hover);
 }
 
 .btn-cancel {
-  background: var(--surface-2);
-}
-
-.btn-cancel:hover {
-  background: #2b2b30;
+  background: var(--face);
 }
 
 /* ── Add / edit form ─────────────────────────────────────────────────── */
 .form {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--face);
+  border: 1px solid var(--seam);
   border-radius: 12px;
   padding: 20px;
   margin-top: 16px;
@@ -255,7 +261,7 @@ h2 {
   margin-bottom: 14px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-mid);
+  color: var(--ink-mid);
 }
 
 .form .field-hint {
@@ -271,10 +277,10 @@ h2 {
   width: 100%;
   margin-top: 6px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hairline);
+  background: #fff;
+  border: 1px solid var(--seam);
   border-radius: 8px;
-  color: var(--text);
+  color: var(--ink);
   font-size: 13px;
   font-family: inherit;
   outline: none;
@@ -302,7 +308,7 @@ h2 {
 }
 
 .btn-file {
-  background: var(--surface-2);
+  background: var(--face-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,7 +318,7 @@ h2 {
 }
 
 .btn-file:hover {
-  background: #2b2b30;
+  background: var(--face);
 }
 
 .icon-preview {
@@ -331,8 +337,8 @@ h2 {
   height: 32px;
   border-radius: 6px;
   object-fit: contain;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hairline);
+  background: #fff;
+  border: 1px solid var(--seam);
   padding: 4px;
 }
 
@@ -357,7 +363,7 @@ h2 {
 .confirm-dialog {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(30, 29, 27, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -369,12 +375,13 @@ h2 {
 }
 
 .confirm-box {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--face);
+  border: 1px solid var(--seam);
   border-radius: 12px;
   padding: 24px;
   min-width: 300px;
   text-align: center;
+  box-shadow: 0 12px 32px rgba(30, 29, 27, 0.18);
 }
 
 .confirm-box p {
@@ -389,8 +396,8 @@ h2 {
 }
 
 .catalog-box {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  background: var(--face);
+  border: 1px solid var(--seam);
   border-radius: 12px;
   padding: 20px;
   width: min(480px, 92vw);
@@ -398,6 +405,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: 0 12px 32px rgba(30, 29, 27, 0.18);
 }
 
 .catalog-header {
@@ -414,10 +422,10 @@ h2 {
 .catalog-search {
   width: 100%;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hairline);
+  background: #fff;
+  border: 1px solid var(--seam);
   border-radius: 8px;
-  color: var(--text);
+  color: var(--ink);
   font-size: 13px;
   font-family: inherit;
   outline: none;
@@ -440,8 +448,8 @@ h2 {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hairline);
+  background: var(--face-2);
+  border: 1px solid var(--seam);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
@@ -453,8 +461,8 @@ h2 {
 }
 
 .catalog-item:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--ink-dim);
+  background: #fff;
 }
 
 .catalog-item:disabled {
@@ -481,7 +489,7 @@ h2 {
 
 .catalog-item .url {
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -489,13 +497,13 @@ h2 {
 
 .catalog-badge {
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   flex-shrink: 0;
 }
 
 .catalog-empty {
   text-align: center;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   font-size: 13px;
   padding: 16px 0;
 }
@@ -504,7 +512,7 @@ h2 {
 .section-divider {
   width: 100%;
   height: 1px;
-  background: var(--hairline);
+  background: var(--seam);
   margin: 32px 0 24px;
 }
 
@@ -517,7 +525,7 @@ h2 {
 
 .pref-label {
   font-size: 13px;
-  color: var(--text-mid);
+  color: var(--ink-mid);
 }
 
 .pref-control {
@@ -528,13 +536,13 @@ h2 {
 
 .pref-control input[type="range"] {
   width: 130px;
-  accent-color: var(--accent);
+  accent-color: var(--charcoal);
 }
 
 .pref-control input[type="color"] {
   width: 36px;
   height: 26px;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--seam);
   border-radius: 6px;
   background: none;
   cursor: pointer;
@@ -543,7 +551,7 @@ h2 {
 
 .pref-control span {
   font-size: 12px;
-  color: var(--text-dim);
+  color: var(--ink-dim);
   min-width: 40px;
 }
 
@@ -565,8 +573,8 @@ h2 {
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: var(--surface-2);
-  border: 1px solid var(--hairline);
+  background: var(--face-2);
+  border: 1px solid var(--seam);
   border-radius: 11px;
   transition: background 0.2s, border-color 0.2s;
 }
@@ -579,8 +587,10 @@ h2 {
   left: 2px;
   top: 2px;
   background: #fff;
+  border: 1px solid var(--seam);
   border-radius: 50%;
   transition: transform 0.2s;
+  box-sizing: border-box;
 }
 
 .toggle input:checked + .toggle-slider {
@@ -589,5 +599,6 @@ h2 {
 }
 
 .toggle input:checked + .toggle-slider::before {
+  border-color: #fff;
   transform: translateX(18px);
 }
