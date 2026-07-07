@@ -1,3 +1,6 @@
+/* Toasts follow the case theme: anthracite by default, light surfaces when
+   the root carries data-theme="light" (set from the sidebar-colour pref). */
+
 .toast-container {
   position: fixed;
   right: 16px;
@@ -15,14 +18,21 @@
   border-radius: 10px;
   font-size: 13px;
   line-height: 1.45;
-  color: #1e1d1b;
-  background: #f9f8f5;
-  border: 1px solid #d6d2cb;
-  border-left: 3px solid #c0392b;
-  box-shadow: 0 8px 24px rgba(30, 29, 27, 0.16);
+  color: #eceae5;
+  background: #2d2b28;
+  border: 1px solid #3a3833;
+  border-left: 3px solid #e0604f;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   opacity: 0;
   transform: translateY(8px);
   transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+:root[data-theme="light"] .toast {
+  color: #1e1d1b;
+  background: #f9f8f5;
+  border-color: #d6d2cb;
+  box-shadow: 0 8px 24px rgba(30, 29, 27, 0.16);
 }
 
 .toast.visible {
@@ -35,6 +45,10 @@
 }
 
 .toast-error {
+  border-left-color: #e0604f;
+}
+
+:root[data-theme="light"] .toast-error {
   border-left-color: #c0392b;
 }
 

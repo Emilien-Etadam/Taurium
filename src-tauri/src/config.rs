@@ -40,7 +40,7 @@ fn default_icon_size() -> u32 {
     40
 }
 fn default_sidebar_color() -> String {
-    "#e8e6e2".to_string()
+    "#232220".to_string()
 }
 fn default_accent_color() -> String {
     "#e8500b".to_string()
@@ -486,7 +486,7 @@ mod tests {
         fs::write(&prefs_path, "").expect("empty preferences.json should be written");
         let empty = load_preferences(&app_data_dir);
         assert_eq!(empty.icon_size, 40);
-        assert_eq!(empty.sidebar_color, "#e8e6e2");
+        assert_eq!(empty.sidebar_color, "#232220");
         assert_eq!(empty.accent_color, "#e8500b");
         assert!(empty.notifications_enabled);
 
@@ -495,7 +495,7 @@ mod tests {
             .expect("partial preferences.json should be written");
         let partial = load_preferences(&app_data_dir);
         assert_eq!(partial.icon_size, 72);
-        assert_eq!(partial.sidebar_color, "#e8e6e2");
+        assert_eq!(partial.sidebar_color, "#232220");
         assert_eq!(partial.accent_color, "#e8500b");
         assert!(partial.notifications_enabled);
 
@@ -508,7 +508,7 @@ mod tests {
         .expect("preferences JSON should serialize");
         fs::write(&prefs_path, json).expect("legacy preferences.json should be written");
         let legacy = load_preferences(&app_data_dir);
-        assert_eq!(legacy.sidebar_color, "#e8e6e2");
+        assert_eq!(legacy.sidebar_color, "#232220");
         assert_eq!(legacy.accent_color, "#e8500b");
 
         // Full file: all values should be loaded.

@@ -1,20 +1,46 @@
 /* ── Taurium settings — Dieter Rams / Braun design language ──────────────
-   Warm light-grey case, white faces, hairline seams, charcoal controls.
-   The orange accent is functional only: focus, checked states, errors get
-   their own muted red. */
+   Warm case, hairline seams, quiet controls. The orange accent is
+   functional only: focus, checked states; errors get their own muted red.
+   settings.js stamps data-theme="dark"/"light" on the root from the
+   sidebar-colour preference; anthracite is the default. */
 
 :root {
+  --bg: #232220;
+  --face: #2d2b28;
+  --face-hover: #34322e;
+  --face-2: #262522;
+  --input-bg: #1d1c1a;
+  --accent: #e8500b;
+  --danger: #e0604f;
+  --ink: #eceae5;
+  --ink-mid: #b3afa7;
+  --ink-dim: #807c75;
+  --seam: #3a3833;
+  --seam-strong: #4a4841;
+  --primary: #eceae5; /* Braun black gear: light primary control */
+  --primary-hover: #ffffff;
+  --primary-ink: #1e1d1b;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --pop-shadow: rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme="light"] {
   --bg: #eceae6;
   --face: #f9f8f5;
+  --face-hover: #fdfdfb;
   --face-2: #f1efeb;
-  --accent: #e8500b;
+  --input-bg: #ffffff;
   --danger: #c0392b;
   --ink: #1e1d1b;
   --ink-mid: #57544e;
   --ink-dim: #8f8b84;
   --seam: #d6d2cb;
-  --charcoal: #2a2927;
-  --charcoal-hover: #1e1d1b;
+  --seam-strong: #c8c4bc;
+  --primary: #2a2927; /* Braun white gear: charcoal primary control */
+  --primary-hover: #1e1d1b;
+  --primary-ink: #ffffff;
+  --scrim: rgba(30, 29, 27, 0.35);
+  --pop-shadow: rgba(30, 29, 27, 0.18);
 }
 
 * {
@@ -83,7 +109,7 @@ h2 {
 }
 
 .service-item:hover {
-  border-color: #c8c4bc;
+  border-color: var(--seam-strong);
 }
 
 .service-item:active {
@@ -187,8 +213,8 @@ h2 {
 }
 
 .btn:hover {
-  background: #fdfdfb;
-  border-color: #c8c4bc;
+  background: var(--face-hover);
+  border-color: var(--seam-strong);
 }
 
 .add-actions {
@@ -213,7 +239,7 @@ h2 {
 .btn-catalog {
   width: 100%;
   background: transparent;
-  border: 1px dashed #bcb8b0;
+  border: 1px dashed var(--seam-strong);
   color: var(--ink-mid);
 }
 
@@ -225,14 +251,14 @@ h2 {
 }
 
 .btn-save {
-  background: var(--charcoal);
-  border-color: var(--charcoal);
-  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
 }
 
 .btn-save:hover {
-  background: var(--charcoal-hover);
-  border-color: var(--charcoal-hover);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-cancel {
@@ -277,7 +303,7 @@ h2 {
   width: 100%;
   margin-top: 6px;
   padding: 8px 12px;
-  background: #fff;
+  background: var(--input-bg);
   border: 1px solid var(--seam);
   border-radius: 8px;
   color: var(--ink);
@@ -337,7 +363,7 @@ h2 {
   height: 32px;
   border-radius: 6px;
   object-fit: contain;
-  background: #fff;
+  background: var(--input-bg);
   border: 1px solid var(--seam);
   padding: 4px;
 }
@@ -363,7 +389,7 @@ h2 {
 .confirm-dialog {
   position: fixed;
   inset: 0;
-  background: rgba(30, 29, 27, 0.35);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -381,7 +407,7 @@ h2 {
   padding: 24px;
   min-width: 300px;
   text-align: center;
-  box-shadow: 0 12px 32px rgba(30, 29, 27, 0.18);
+  box-shadow: 0 12px 32px var(--pop-shadow);
 }
 
 .confirm-box p {
@@ -405,7 +431,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 12px 32px rgba(30, 29, 27, 0.18);
+  box-shadow: 0 12px 32px var(--pop-shadow);
 }
 
 .catalog-header {
@@ -422,7 +448,7 @@ h2 {
 .catalog-search {
   width: 100%;
   padding: 8px 12px;
-  background: #fff;
+  background: var(--input-bg);
   border: 1px solid var(--seam);
   border-radius: 8px;
   color: var(--ink);
@@ -462,7 +488,7 @@ h2 {
 
 .catalog-item:hover:not(:disabled) {
   border-color: var(--ink-dim);
-  background: #fff;
+  background: var(--face-hover);
 }
 
 .catalog-item:disabled {
@@ -536,7 +562,7 @@ h2 {
 
 .pref-control input[type="range"] {
   width: 130px;
-  accent-color: var(--charcoal);
+  accent-color: var(--primary);
 }
 
 .pref-control input[type="color"] {

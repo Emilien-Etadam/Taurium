@@ -38,6 +38,21 @@ function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
 
+// The settings page follows the sidebar-colour preference: a dark case
+// colour selects the anthracite theme, a light one the light-grey theme.
+function applyTheme(sidebarColor) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(sidebarColor || "");
+  let dark = true;
+  if (m) {
+    const n = parseInt(m[1], 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    dark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+  }
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+}
+
 // An icon is either an emoji or an imported image (data:image...).
 // This rejects arbitrary text/HTML typed into the icon field.
 function isEmojiIcon(s) {
@@ -69,6 +84,7 @@ async function init() {
     // Load preferences
     const prefs = await invoke("get_preferences");
     loadedPrefs = prefs;
+    applyTheme(prefs.sidebar_color);
     document.getElementById("pref-icon-size").value = prefs.icon_size;
     document.getElementById("pref-icon-size-val").textContent = prefs.icon_size + "px";
     document.getElementById("pref-sidebar-color").value = prefs.sidebar_color;
@@ -583,6 +599,8 @@ async function savePreferences() {
   try {
     const savedPrefsJson = await invoke("save_preferences_cmd", { prefs });
     JSON.parse(savedPrefsJson); // Confirms backend returned serialized prefs.
+    loadedPrefs = prefs;
+    applyTheme(prefs.sidebar_color);
 
     if (savePrefsFeedbackTimer) clearTimeout(savePrefsFeedbackTimer);
     const originalLabel = "Save Settings";

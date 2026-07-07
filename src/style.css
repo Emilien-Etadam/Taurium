@@ -1,22 +1,41 @@
 /* ── Taurium sidebar — Dieter Rams / Braun ─────────────────────────────────
-   "Weniger, aber besser." A warm light-grey case, round tactile buttons
-   (Braun ET66), hairline seams, and a single functional colour: the accent
-   is used only for the power LED of the active service, notification counts
-   and focus. No decoration, no gradients, no glow. */
+   "Weniger, aber besser." A warm case, round tactile buttons (Braun ET66),
+   hairline seams, and a single functional colour: the accent is used only
+   for the power LED of the active service, notification counts and focus.
+   No decoration, no gradients, no glow.
+
+   The theme adapts to the case colour: main.js reads the sidebar colour
+   preference and stamps data-theme="dark" or "light" on the root. Dark
+   (anthracite, like Braun's black hi-fi line) is the default. */
 
 :root {
   --icon-size: 40px;
   --sidebar-width: 68px;
   --sidebar-expanded: 224px;
-  --sidebar-color: #e8e6e2; /* case */
+  --sidebar-color: #232220; /* case */
   --accent-color: #e8500b; /* Braun orange */
 
+  --ink: #eceae5;
+  --ink-mid: #b3afa7;
+  --ink-dim: #807c75;
+  --seam: #3a3833; /* hairline seams */
+  --seam-strong: #4a4841;
+  --face: #2d2b28; /* button face */
+  --face-hover: #34322e;
+  --shadow-key: rgba(0, 0, 0, 0.35);
+  --shadow-press: rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="light"] {
   --ink: #1e1d1b;
   --ink-mid: #57544e;
   --ink-dim: #8f8b84;
-  --seam: #d6d2cb; /* hairline seams */
-  --face: #f7f6f3; /* button face */
+  --seam: #d6d2cb;
+  --seam-strong: #c8c4bc;
+  --face: #f7f6f3;
   --face-hover: #fdfdfb;
+  --shadow-key: rgba(30, 29, 27, 0.07);
+  --shadow-press: rgba(30, 29, 27, 0.14);
 }
 
 * {
@@ -101,19 +120,19 @@ body {
   border-radius: 50%;
   background: var(--face);
   border: 1px solid var(--seam);
-  box-shadow: 0 1px 1px rgba(30, 29, 27, 0.07);
+  box-shadow: 0 1px 1px var(--shadow-key);
   transition: background 0.12s ease, border-color 0.12s ease,
     box-shadow 0.12s ease;
 }
 .service-icon:hover .glyph-wrap,
 .settings-icon:hover .glyph-wrap {
   background: var(--face-hover);
-  border-color: #c8c4bc;
+  border-color: var(--seam-strong);
 }
 /* Press: the key sinks in. */
 .service-icon:active .glyph-wrap,
 .settings-icon:active .glyph-wrap {
-  box-shadow: inset 0 1px 2px rgba(30, 29, 27, 0.14);
+  box-shadow: inset 0 1px 2px var(--shadow-press);
   background: var(--sidebar-color);
 }
 
@@ -121,8 +140,8 @@ body {
 .service-icon.active .glyph-wrap,
 .settings-icon.active .glyph-wrap {
   background: var(--sidebar-color);
-  border-color: #c8c4bc;
-  box-shadow: inset 0 1px 2px rgba(30, 29, 27, 0.12);
+  border-color: var(--seam-strong);
+  box-shadow: inset 0 1px 2px var(--shadow-press);
 }
 .service-icon.active::before,
 .settings-icon.active::before {

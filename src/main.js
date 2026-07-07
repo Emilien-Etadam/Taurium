@@ -245,12 +245,25 @@ async function init() {
   }
 }
 
+// The theme (ink, seams, key faces) follows the case colour: a dark sidebar
+// colour yields the anthracite theme, a light one the light-grey theme.
+function isDarkColor(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return true;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+}
+
 function applyPreferences(prefs) {
   const root = document.documentElement;
   iconSize = prefs.icon_size;
   root.style.setProperty("--icon-size", prefs.icon_size + "px");
   root.style.setProperty("--sidebar-color", prefs.sidebar_color);
   root.style.setProperty("--accent-color", prefs.accent_color);
+  root.dataset.theme = isDarkColor(prefs.sidebar_color) ? "dark" : "light";
   // Sidebar width must track icon size so large icons don't overflow/overlap.
   syncSidebarWidth();
 }
