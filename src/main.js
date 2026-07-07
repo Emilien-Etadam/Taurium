@@ -256,9 +256,11 @@ function applyPreferences(prefs) {
 }
 
 // Compact/expanded sidebar widths derived from the icon size.
+// Rows carry 8px side margins + 4px padding, so the compact column needs
+// icon size + 24px for the icon to sit centered without clipping.
 function computeSidebarWidths() {
-  const compact = Math.max(48, iconSize + 16);
-  const expanded = Math.max(210, iconSize + 170);
+  const compact = Math.max(56, iconSize + 24);
+  const expanded = Math.max(220, iconSize + 180);
   return { compact, expanded };
 }
 
