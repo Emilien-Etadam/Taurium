@@ -1,58 +1,17 @@
-/* ── Taurium sidebar — Dieter Rams / Braun ─────────────────────────────────
-   "Weniger, aber besser." A warm case, round tactile buttons (Braun ET66),
-   hairline seams, and a single functional colour: the accent is used only
-   for the power LED of the active service, notification counts and focus.
-   No decoration, no gradients, no glow.
-
-   The theme adapts to the case colour: main.js reads the sidebar colour
-   preference and stamps data-theme="dark" or "light" on the root. Dark
-   (anthracite, like Braun's black hi-fi line) is the default. */
+/* ── Taurium sidebar — V3 Snow ─────────────────────────────────────────
+   Source list dense sur fond bg. Le service actif est une sélection
+   pleine largeur en dégradé accent (recette « source list »). Tout
+   l'interactif dérive de var(--accent) via les tokens de snow.css. */
 
 :root {
   --icon-size: 40px;
-  --sidebar-width: 68px;
-  --sidebar-expanded: 224px;
-  --sidebar-color: #232220; /* case */
-  --accent-color: #e8500b; /* Braun orange */
-
-  --ink: #eceae5;
-  --ink-mid: #b3afa7;
-  --ink-dim: #807c75;
-  --seam: #3a3833; /* hairline seams */
-  --seam-strong: #4a4841;
-  --face: #2d2b28; /* button face */
-  --face-hover: #34322e;
-  --shadow-key: rgba(0, 0, 0, 0.35);
-  --shadow-press: rgba(0, 0, 0, 0.5);
-}
-
-:root[data-theme="light"] {
-  --ink: #1e1d1b;
-  --ink-mid: #57544e;
-  --ink-dim: #8f8b84;
-  --seam: #d6d2cb;
-  --seam-strong: #c8c4bc;
-  --face: #f7f6f3;
-  --face-hover: #fdfdfb;
-  --shadow-key: rgba(30, 29, 27, 0.07);
-  --shadow-press: rgba(30, 29, 27, 0.14);
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  --sidebar-width: 56px;
+  --sidebar-expanded: 220px;
 }
 
 body {
-  background: var(--sidebar-color);
-  color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI",
-    Roboto, Arial, sans-serif;
-  font-size: 13px;
   overflow: hidden;
   height: 100vh;
-  -webkit-font-smoothing: antialiased;
 }
 
 #sidebar {
@@ -61,23 +20,24 @@ body {
   left: 0;
   width: var(--sidebar-width);
   height: 100vh;
-  background: var(--sidebar-color);
-  border-right: 1px solid var(--seam);
+  background: var(--bg);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 10px 0 0;
+  padding: 6px 0 0;
   z-index: 100;
   overflow: hidden;
 }
 
-/* Expanded (pinned) state. The native webview snaps to the same width from
-   Rust, so we snap here too (no width animation); only labels fade in. */
+/* État épinglé. La webview native s'aligne sur la même largeur côté Rust,
+   donc on change la largeur d'un coup (pas d'animation) ; seuls les
+   libellés apparaissent en fondu. */
 #sidebar.expanded {
   width: var(--sidebar-expanded);
 }
 #sidebar.expanded .label {
   opacity: 1;
-  max-width: 148px;
+  max-width: 150px;
 }
 #sidebar.expanded .group-line {
   opacity: 0;
@@ -86,143 +46,128 @@ body {
   opacity: 1;
 }
 
-/* ── Rows ────────────────────────────────────────────────────────────── */
+/* ── Rangées (source list, pleine largeur) ───────────────────────────── */
 .sidebar-toggle,
 .service-icon,
 .settings-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 10px;
-  padding: 3px 0;
+  width: 100%;
+  height: calc(var(--icon-size) + 8px);
+  padding: 0;
   cursor: pointer;
   user-select: none;
   position: relative;
   flex-shrink: 0;
+  color: var(--text);
+  transition: background 120ms, color 120ms;
 }
 #sidebar.expanded .sidebar-toggle,
 #sidebar.expanded .service-icon,
 #sidebar.expanded .settings-icon {
   justify-content: flex-start;
+  padding: 0 8px;
+}
+
+.sidebar-toggle:hover,
+.service-icon:hover:not(.active),
+.settings-icon:hover:not(.active) {
+  background: var(--hover);
 }
 
 .sidebar-toggle:focus-visible,
 .service-icon:focus-visible,
 .settings-icon:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
-  border-radius: 50%;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 
-/* The button: a round tactile key on the case. */
-.service-icon .glyph-wrap,
-.settings-icon .glyph-wrap {
-  border-radius: 50%;
-  background: var(--face);
-  border: 1px solid var(--seam);
-  box-shadow: 0 1px 1px var(--shadow-key);
-  transition: background 0.12s ease, border-color 0.12s ease,
-    box-shadow 0.12s ease;
-}
-.service-icon:hover .glyph-wrap,
-.settings-icon:hover .glyph-wrap {
-  background: var(--face-hover);
-  border-color: var(--seam-strong);
-}
-/* Press: the key sinks in. */
-.service-icon:active .glyph-wrap,
-.settings-icon:active .glyph-wrap {
-  box-shadow: inset 0 1px 2px var(--shadow-press);
-  background: var(--sidebar-color);
+/* Sélection : dégradé accent pleine largeur, texte clair « gravé ». */
+.service-icon.active,
+.settings-icon.active {
+  color: #fff;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.2);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 72%, #fff),
+    color-mix(in srgb, var(--accent) 82%, #000)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-/* Active service: the key stays pressed and its power LED lights up. */
-.service-icon.active .glyph-wrap,
-.settings-icon.active .glyph-wrap {
-  background: var(--sidebar-color);
-  border-color: var(--seam-strong);
-  box-shadow: inset 0 1px 2px var(--shadow-press);
-}
-.service-icon.active::before,
-.settings-icon.active::before {
-  content: "";
-  position: absolute;
-  left: -7px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent-color);
-}
-
-/* ── Expand / collapse toggle: a quiet, faceless control ─────────────── */
+/* ── Bascule replier/déployer ────────────────────────────────────────── */
 .sidebar-toggle {
-  margin-bottom: 6px;
-  color: var(--ink-dim);
-  border-radius: 8px;
+  height: 28px;
+  margin-bottom: 2px;
+  color: var(--text-muted);
 }
 .sidebar-toggle:hover {
-  color: var(--ink);
+  color: var(--text);
 }
 .sidebar-toggle .glyph-wrap {
-  height: 26px;
-  min-height: 26px;
+  height: 28px;
+  min-height: 28px;
 }
 .toggle-chevron {
   width: 15px;
   height: 15px;
   display: block;
-  transition: transform 0.18s ease;
+  transition: transform 120ms;
 }
 #sidebar.expanded .toggle-chevron {
   transform: rotate(180deg);
 }
 
-/* ── Quick switcher (visible when expanded, Ctrl+K) ──────────────────── */
+/* ── Recherche rapide (visible déployée, Ctrl+K) ─────────────────────── */
 .sidebar-search {
   display: none;
-  padding: 2px 10px 10px;
+  padding: 4px 8px 8px;
   flex-shrink: 0;
 }
 #sidebar.expanded .sidebar-search {
   display: block;
 }
 .sidebar-search input {
+  display: block;
   width: 100%;
-  height: 30px;
-  border: 1px solid var(--seam);
-  border-radius: 8px;
-  background: var(--face);
-  color: var(--ink);
+  height: 26px;
+  padding: 0 8px;
   font-size: 12px;
-  padding: 0 10px;
-  outline: none;
-  transition: border-color 0.12s ease;
+  font-family: inherit;
+  color: var(--text);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--control-bg) 96%, #000);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
+  transition: border-color 120ms, box-shadow 120ms;
 }
 .sidebar-search input::placeholder {
-  color: var(--ink-dim);
+  color: var(--text-muted);
 }
 .sidebar-search input:focus {
-  border-color: var(--accent-color);
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16),
+    0 0 0 2px var(--focus-ring);
 }
 .no-match {
   font-size: 12px;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   text-align: center;
-  padding: 14px 8px;
+  padding: 12px 8px;
 }
 
-/* ── Service list ────────────────────────────────────────────────────── */
+/* ── Liste des services ──────────────────────────────────────────────── */
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -231,13 +176,13 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
   flex-shrink: 0;
-  padding: 10px 0;
-  border-top: 1px solid var(--seam);
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
 }
 
-/* Icon container: the round key face. */
+/* Conteneur d'icône : zone carrée, les pastilles s'y ancrent. */
 .glyph-wrap {
   position: relative;
   width: var(--icon-size);
@@ -250,46 +195,48 @@ body {
 }
 
 .glyph {
-  font-size: calc(var(--icon-size) * 0.46);
+  font-size: calc(var(--icon-size) * 0.5);
   line-height: 1;
 }
 
-/* Image icons keep their real colours on the neutral key face. */
 .icon-img {
-  width: calc(var(--icon-size) * 0.56);
-  height: calc(var(--icon-size) * 0.56);
-  border-radius: 4px;
+  width: calc(var(--icon-size) * 0.6);
+  height: calc(var(--icon-size) * 0.6);
+  border-radius: var(--radius-sm);
   object-fit: contain;
   pointer-events: none;
 }
 
-/* Labels (expanded sidebar only) */
+/* Libellés (sidebar déployée) */
 .label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-left: 12px;
-  color: var(--ink-mid);
+  margin-left: 4px;
   opacity: 0;
   max-width: 0;
-  transition: opacity 0.15s ease, color 0.12s ease;
+  transition: opacity 120ms;
 }
-.service-icon:hover .label,
-.service-icon.active .label,
-.settings-icon:hover .label,
-.sidebar-toggle:hover .label {
-  color: var(--ink);
+.sidebar-toggle .label,
+.settings-icon:not(.active) .label {
+  color: var(--text-muted);
+}
+.sidebar-toggle:hover .label,
+.settings-icon:hover .label {
+  color: var(--text);
+}
+.settings-icon.active .label {
+  color: #fff;
 }
 
-/* ── Status & notifications ──────────────────────────────────────────── */
-/* Only the transient "loading" spinner is shown; idle/loaded render nothing. */
+/* ── États & notifications ───────────────────────────────────────────── */
+/* Seul le chargement transitoire est affiché ; idle/loaded ne rendent rien. */
 .status-dot {
   position: absolute;
-  right: -1px;
-  bottom: -1px;
+  right: 0;
+  bottom: 0;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -300,73 +247,79 @@ body {
   display: none;
 }
 .status-dot.loading {
-  background: var(--face);
-  border: 2px solid var(--seam);
-  border-top-color: var(--accent-color);
-  animation: spin 0.7s linear infinite;
+  background: transparent;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: snow-spin 0.7s linear infinite;
 }
 
-/* Notification count: a small functional orange disc. */
+/* Compteur de notifications : badge accent, chiffres 700. */
 .badge {
   position: absolute;
-  top: -3px;
-  right: -3px;
-  background: var(--accent-color);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
-  display: flex;
+  top: -2px;
+  right: -4px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1;
-  border: 2px solid var(--sidebar-color);
-  box-sizing: content-box;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.service-icon.active .badge {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: none;
+  text-shadow: none;
 }
 
-/* ── Group headers ───────────────────────────────────────────────────── */
-/* Fixed height so buttons never shift. Compact = seam; expanded = label. */
+/* ── En-têtes de groupe ──────────────────────────────────────────────── */
+/* Hauteur fixe : les rangées ne bougent pas. Replié = filet ; déployé =
+   libellé 11px majuscules. */
 .group-header {
   position: relative;
-  height: 20px;
+  height: 22px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 12px;
   margin-top: 4px;
 }
 .group-line {
   flex: 1;
   height: 1px;
-  background: var(--seam);
-  transition: opacity 0.15s ease;
+  background: var(--border);
+  transition: opacity 120ms;
 }
 .group-text {
   position: absolute;
-  left: 18px;
-  right: 14px;
-  font-size: 9.5px;
+  left: 12px;
+  right: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--ink-dim);
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 120ms;
 }
 
-/* ── Settings ────────────────────────────────────────────────────────── */
+/* ── Réglages ────────────────────────────────────────────────────────── */
 .settings-icon {
-  color: var(--ink-mid);
+  color: var(--text-muted);
 }
-.settings-icon:hover,
-.settings-icon.active {
-  color: var(--ink);
+.settings-icon:hover {
+  color: var(--text);
 }
 .settings-icon .gear-icon {
   width: 18px;
@@ -374,20 +327,19 @@ body {
   display: block;
 }
 
-/* "Update available" marker on the settings gear */
+/* Marqueur « mise à jour disponible » sur l'engrenage */
 .update-dot {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 4px;
+  right: 4px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent-color);
-  border: 2px solid var(--face);
-  box-sizing: content-box;
+  background: var(--green);
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
-/* ── Empty state ─────────────────────────────────────────────────────── */
+/* ── État vide ───────────────────────────────────────────────────────── */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -395,29 +347,30 @@ body {
   justify-content: center;
   flex: 1;
   gap: 6px;
+  padding: 0 8px;
+  text-align: center;
 }
 .empty-state.hidden {
   display: none;
 }
 .empty-icon {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 300;
-  color: var(--ink-dim);
+  color: var(--text-muted);
 }
 .empty-text {
-  font-size: 10px;
-  color: var(--ink-dim);
-  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
-/* ── Loading overlay ─────────────────────────────────────────────────── */
+/* ── Voile de chargement ─────────────────────────────────────────────── */
 .loading-overlay {
   position: fixed;
   top: 0;
   left: var(--sidebar-width);
   right: 0;
   bottom: 0;
-  background: rgba(30, 29, 27, 0.25);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -426,17 +379,10 @@ body {
 .loading-overlay.hidden {
   display: none;
 }
-.spinner {
+.loading-overlay .spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(255, 255, 255, 0.4);
-  border-top-color: var(--accent-color);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  border-width: 3px;
+  border-color: rgba(255, 255, 255, 0.25);
+  border-top-color: var(--accent);
 }

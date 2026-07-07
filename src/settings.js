@@ -38,19 +38,43 @@ function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
 }
 
-// The settings page follows the sidebar-colour preference: a dark case
-// colour selects the anthracite theme, a light one the light-grey theme.
-function applyTheme(sidebarColor) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(sidebarColor || "");
-  let dark = true;
-  if (m) {
-    const n = parseInt(m[1], 16);
-    const r = (n >> 16) & 255;
-    const g = (n >> 8) & 255;
-    const b = n & 255;
-    dark = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+// V3 Snow : thème sombre/clair/auto + accent en preset calibré. Le choix
+// est appliqué immédiatement en aperçu, persisté via « Enregistrer ».
+const ACCENT_PRESETS = ["blue", "emerald", "violet", "gold", "raspberry", "lagoon"];
+let selectedTheme = "dark";
+let selectedAccent = "blue";
+
+function applySnowPrefs() {
+  const root = document.documentElement;
+  root.dataset.accent = selectedAccent;
+  if (selectedTheme === "light" || selectedTheme === "dark") {
+    root.dataset.theme = selectedTheme;
+  } else {
+    delete root.dataset.theme; // auto : suit prefers-color-scheme
   }
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
+}
+
+function renderThemeControls() {
+  document.querySelectorAll("#pref-theme > button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === selectedTheme);
+  });
+  document.querySelectorAll("#pref-accent > button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === selectedAccent);
+  });
+}
+
+function initThemeControls() {
+  document.querySelectorAll("#pref-theme > button, #pref-accent > button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.parentElement.id === "pref-theme") {
+        selectedTheme = btn.dataset.value;
+      } else {
+        selectedAccent = btn.dataset.value;
+      }
+      applySnowPrefs();
+      renderThemeControls();
+    });
+  });
 }
 
 // An icon is either an emoji or an imported image (data:image...).
@@ -84,14 +108,16 @@ async function init() {
     // Load preferences
     const prefs = await invoke("get_preferences");
     loadedPrefs = prefs;
-    applyTheme(prefs.sidebar_color);
+    selectedTheme = ["auto", "dark", "light"].includes(prefs.theme) ? prefs.theme : "dark";
+    selectedAccent = ACCENT_PRESETS.includes(prefs.accent_color) ? prefs.accent_color : "blue";
+    applySnowPrefs();
+    initThemeControls();
+    renderThemeControls();
     document.getElementById("pref-icon-size").value = prefs.icon_size;
     document.getElementById("pref-icon-size-val").textContent = prefs.icon_size + "px";
-    document.getElementById("pref-sidebar-color").value = prefs.sidebar_color;
-    document.getElementById("pref-accent-color").value = prefs.accent_color;
     document.getElementById("pref-notifications").checked = prefs.notifications_enabled;
   } catch (err) {
-    showToast("Could not load settings: " + formatInvokeError(err), { durationMs: 10000 });
+    showToast("Impossible de charger les réglages : " + formatInvokeError(err), { durationMs: 10000 });
     console.error("Settings init error:", err);
   }
 
@@ -137,15 +163,15 @@ function renderServices() {
     item.dataset.index = index;
 
     item.innerHTML = `
-      <span class="drag-handle" title="Drag to reorder">&#9776;</span>
+      <span class="drag-handle" title="Glisser pour réordonner">&#9776;</span>
       <span class="icon"></span>
       <div class="info">
         <div class="name">${escapeHtml(service.name)}</div>
         <div class="url">${escapeHtml(service.url)}</div>
       </div>
       <div class="actions">
-        <button class="btn-icon edit" title="Edit">&#9998;</button>
-        <button class="btn-icon delete" title="Delete">&#10005;</button>
+        <button class="btn-icon edit" title="Modifier">&#9998;</button>
+        <button class="btn-icon delete" title="Supprimer">&#10005;</button>
       </div>
     `;
 
@@ -247,7 +273,7 @@ function onDragEnd(e) {
 function showDeleteConfirm(index) {
   deleteIndex = index;
   const name = services[index].name;
-  document.getElementById("confirm-msg").textContent = `Delete "${name}"?`;
+  document.getElementById("confirm-msg").textContent = `Supprimer « ${name} » ?`;
   document.getElementById("confirm-dialog").classList.remove("hidden");
 }
 
@@ -292,7 +318,7 @@ function clearIconPreview() {
 function showAddForm() {
   editingIndex = -1;
   iconDataUrl = "";
-  document.getElementById("form-title").textContent = "Add Service";
+  document.getElementById("form-title").textContent = "Ajouter un service";
   document.getElementById("input-name").value = "";
   document.getElementById("input-url").value = "";
   document.getElementById("input-group").value = "";
@@ -311,7 +337,7 @@ function showAddForm() {
 function showEditForm(index) {
   editingIndex = index;
   const s = services[index];
-  document.getElementById("form-title").textContent = "Edit Service";
+  document.getElementById("form-title").textContent = "Modifier le service";
   document.getElementById("input-name").value = s.name;
   document.getElementById("input-url").value = s.url;
   document.getElementById("input-group").value = s.group ?? "";
@@ -350,13 +376,13 @@ function clearErrors() {
     el.classList.add("hidden");
     el.textContent = "";
   });
-  document.querySelectorAll(".input-error").forEach(el => el.classList.remove("input-error"));
+  document.querySelectorAll(".is-error").forEach(el => el.classList.remove("is-error"));
 }
 
 function showError(fieldId, message) {
   const input = document.getElementById(fieldId);
   const err = document.getElementById("err-" + fieldId.replace("input-", ""));
-  if (input) input.classList.add("input-error");
+  if (input) input.classList.add("is-error");
   if (err) {
     err.textContent = message;
     err.classList.remove("hidden");
@@ -380,13 +406,13 @@ async function saveForm() {
 
   // Validate name
   if (!name) {
-    showError("input-name", "Name is required");
+    showError("input-name", "Indiquez un nom.");
     valid = false;
   }
 
   // Validate URL (http/https only)
   if (!url) {
-    showError("input-url", "URL is required");
+    showError("input-url", "Indiquez une URL.");
     valid = false;
   } else {
     let parsed = null;
@@ -396,14 +422,14 @@ async function saveForm() {
       parsed = null;
     }
     if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
-      showError("input-url", "URL must start with http:// or https://");
+      showError("input-url", "L’URL doit commencer par http:// ou https://.");
       valid = false;
     }
   }
 
   // Validate icon: emoji only (images go through the file picker)
   if (!iconDataUrl && emojiIcon && !isEmojiIcon(emojiIcon)) {
-    showError("input-icon", "Icon must be a single emoji (or import an image)");
+    showError("input-icon", "Utilisez un seul emoji, ou importez une image.");
     valid = false;
   }
 
@@ -451,7 +477,7 @@ async function persistServices() {
       showServicesLoadInfo(applyResult);
     }
   } catch (err) {
-    showToast("Could not save services: " + formatInvokeError(err));
+    showToast("Impossible d’enregistrer les services : " + formatInvokeError(err));
     console.error("Save services error:", err);
   }
 }
@@ -591,8 +617,8 @@ async function savePreferences() {
     // Preserve fields not editable on this page (e.g. sidebar_expanded).
     ...loadedPrefs,
     icon_size: parseInt(document.getElementById("pref-icon-size").value),
-    sidebar_color: document.getElementById("pref-sidebar-color").value,
-    accent_color: document.getElementById("pref-accent-color").value,
+    theme: selectedTheme,
+    accent_color: selectedAccent,
     notifications_enabled: document.getElementById("pref-notifications").checked,
   };
 
@@ -600,11 +626,11 @@ async function savePreferences() {
     const savedPrefsJson = await invoke("save_preferences_cmd", { prefs });
     JSON.parse(savedPrefsJson); // Confirms backend returned serialized prefs.
     loadedPrefs = prefs;
-    applyTheme(prefs.sidebar_color);
+    applySnowPrefs();
 
     if (savePrefsFeedbackTimer) clearTimeout(savePrefsFeedbackTimer);
-    const originalLabel = "Save Settings";
-    savePrefsBtn.textContent = "Saved";
+    const originalLabel = "Enregistrer";
+    savePrefsBtn.textContent = "Enregistré";
     savePrefsBtn.disabled = true;
     savePrefsFeedbackTimer = setTimeout(() => {
       savePrefsBtn.textContent = originalLabel;
@@ -612,9 +638,9 @@ async function savePreferences() {
       savePrefsFeedbackTimer = null;
     }, 1000);
   } catch (err) {
-    showToast("Could not save preferences: " + formatInvokeError(err));
+    showToast("Impossible d’enregistrer les préférences : " + formatInvokeError(err));
     console.error("Save preferences error:", err);
-    savePrefsBtn.textContent = "Save Settings";
+    savePrefsBtn.textContent = "Enregistrer";
     savePrefsBtn.disabled = false;
   }
 }

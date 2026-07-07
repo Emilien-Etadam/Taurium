@@ -1,5 +1,4 @@
-/* Toasts follow the case theme: anthracite by default, light surfaces when
-   the root carries data-theme="light" (set from the sidebar-colour pref). */
+/* Toasts — V3 Snow : surface plate, bordure 1px, liseré sémantique. */
 
 .toast-container {
   position: fixed;
@@ -14,25 +13,18 @@
 }
 
 .toast {
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius, 3px);
   font-size: 13px;
   line-height: 1.45;
-  color: #eceae5;
-  background: #2d2b28;
-  border: 1px solid #3a3833;
-  border-left: 3px solid #e0604f;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: var(--text, #d8d5d0);
+  background: var(--surface-raised, #282726);
+  border: 1px solid var(--border, #3d3b38);
+  border-left: 3px solid var(--red, #ef8574);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-:root[data-theme="light"] .toast {
-  color: #1e1d1b;
-  background: #f9f8f5;
-  border-color: #d6d2cb;
-  box-shadow: 0 8px 24px rgba(30, 29, 27, 0.16);
+  transition: opacity 120ms, transform 120ms;
 }
 
 .toast.visible {
@@ -41,17 +33,13 @@
 }
 
 .toast-warning {
-  border-left-color: #d4a017;
+  border-left-color: var(--amber, #d3af2a);
 }
 
 .toast-error {
-  border-left-color: #e0604f;
-}
-
-:root[data-theme="light"] .toast-error {
-  border-left-color: #c0392b;
+  border-left-color: var(--red, #ef8574);
 }
 
 .toast-info {
-  border-left-color: #e8500b;
+  border-left-color: var(--accent, #4d9fea);
 }

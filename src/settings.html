@@ -1,150 +1,194 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Settings - Taurium</title>
+  <title>Réglages - Taurium</title>
+  <link rel="stylesheet" href="snow.css" />
   <link rel="stylesheet" href="settings.css" />
   <link rel="stylesheet" href="toast.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Services</h1>
-    <p class="hint">Drag to reorder. Changes are applied instantly.</p>
-
-    <div id="service-list"></div>
-
-    <div class="add-actions">
-      <button id="add-btn" class="btn btn-add">+ Add Service</button>
-      <button id="catalog-btn" class="btn btn-catalog">Ajouter depuis le catalogue</button>
-    </div>
-
-    <div id="edit-form" class="form hidden">
-      <h2 id="form-title">Add Service</h2>
-      <label>
-        Name
-        <input type="text" id="input-name" placeholder="Gmail" />
-        <span id="err-name" class="field-error hidden"></span>
-      </label>
-      <label>
-        URL
-        <input type="url" id="input-url" placeholder="https://mail.google.com" />
-        <span id="err-url" class="field-error hidden"></span>
-      </label>
-      <label>
-        Groupe (optionnel)
-        <input type="text" id="input-group" placeholder="Personnel, Travail…" autocomplete="off" list="group-suggestions" />
-        <datalist id="group-suggestions"></datalist>
-        <p class="hint field-hint">Regroupe les services dans la barre latérale.</p>
-      </label>
-      <label>
-        User Agent (optional)
-        <input type="text" id="input-user-agent" placeholder="Leave empty for default" autocomplete="off" />
-        <p class="hint field-hint">Applied immediately when you save (the service webview is recreated).</p>
-      </label>
-      <label>
-        Zoom
-        <input type="range" id="input-zoom" min="0.5" max="2" step="0.1" value="1" />
-        <span id="input-zoom-val" class="field-hint">1.0×</span>
-      </label>
-      <label>
-        Icon
-        <div class="icon-input-row">
-          <input type="text" id="input-icon" placeholder="&#128231; or use image" />
-          <label class="btn btn-file" title="Import image">
-            &#128247;
-            <input type="file" id="input-icon-file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden />
-          </label>
-        </div>
-        <span id="err-icon" class="field-error hidden"></span>
-        <div id="icon-preview" class="icon-preview hidden">
-          <img id="icon-preview-img" />
-          <button id="icon-preview-clear" class="btn-icon delete" title="Remove">&times;</button>
-        </div>
-      </label>
-      <div class="form-actions">
-        <button id="save-btn" class="btn btn-save">Save</button>
-        <button id="cancel-btn" class="btn btn-cancel">Cancel</button>
+    <header class="screen-head">
+      <div>
+        <h1 class="screen-title">Réglages</h1>
+        <p class="screen-sub">Services, apparence et mises à jour.</p>
       </div>
-    </div>
+    </header>
+
+    <!-- ── Services ─────────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Services</h2>
+        <div class="card-head-actions">
+          <button id="catalog-btn" class="btn btn--secondary btn--sm">Depuis le catalogue</button>
+          <button id="add-btn" class="btn btn--secondary btn--sm">Ajouter un service</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="hint">Glissez pour réordonner. Les changements s'appliquent immédiatement.</p>
+
+        <div id="service-list"></div>
+
+        <div id="edit-form" class="form hidden">
+          <h3 id="form-title" class="form-title">Ajouter un service</h3>
+          <label class="field">
+            <span class="field-label">Nom</span>
+            <input type="text" id="input-name" class="control" placeholder="Gmail" />
+            <span id="err-name" class="field-error hidden"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">URL</span>
+            <input type="url" id="input-url" class="control" placeholder="https://mail.google.com" />
+            <span id="err-url" class="field-error hidden"></span>
+          </label>
+          <label class="field">
+            <span class="field-label">Groupe (optionnel)</span>
+            <input type="text" id="input-group" class="control" placeholder="Personnel, Travail…" autocomplete="off" list="group-suggestions" />
+            <datalist id="group-suggestions"></datalist>
+            <p class="field-hint">Regroupe les services dans la barre latérale.</p>
+          </label>
+          <label class="field">
+            <span class="field-label">User agent (optionnel)</span>
+            <input type="text" id="input-user-agent" class="control" placeholder="Vide = valeur par défaut" autocomplete="off" />
+            <p class="field-hint">Appliqué à l'enregistrement (la webview du service est recréée).</p>
+          </label>
+          <label class="field">
+            <span class="field-label">Zoom</span>
+            <div class="range-row">
+              <input type="range" id="input-zoom" min="0.5" max="2" step="0.1" value="1" />
+              <span id="input-zoom-val" class="range-value">1.0×</span>
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-label">Icône</span>
+            <div class="icon-input-row">
+              <input type="text" id="input-icon" class="control" placeholder="&#128231; ou importez une image" />
+              <label class="btn btn--secondary btn-file" title="Importer une image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="1" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
+                </svg>
+                <input type="file" id="input-icon-file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden />
+              </label>
+            </div>
+            <span id="err-icon" class="field-error hidden"></span>
+            <div id="icon-preview" class="icon-preview hidden">
+              <img id="icon-preview-img" alt="" />
+              <button id="icon-preview-clear" class="btn btn--ghost btn--sm" title="Retirer l'image">Retirer</button>
+            </div>
+          </label>
+          <div class="form-actions">
+            <button id="save-btn" class="btn btn--primary">Enregistrer</button>
+            <button id="cancel-btn" class="btn btn--ghost">Annuler</button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Catalog dialog -->
-    <div id="catalog-dialog" class="confirm-dialog hidden">
-      <div class="catalog-box">
-        <div class="catalog-header">
-          <h2>Catalogue de services</h2>
-          <button id="catalog-close" class="btn-icon delete" title="Fermer">&times;</button>
+    <div id="catalog-dialog" class="dialog-overlay hidden">
+      <div class="card dialog catalog-box">
+        <div class="card-head">
+          <h2 class="card-title">Catalogue de services</h2>
+          <button id="catalog-close" class="btn btn--ghost btn--sm" title="Fermer">Fermer</button>
         </div>
-        <input type="search" id="catalog-search" class="catalog-search" placeholder="Rechercher…" autocomplete="off" />
-        <div id="catalog-list" class="catalog-list"></div>
+        <div class="card-body catalog-body">
+          <input type="search" id="catalog-search" class="control" placeholder="Rechercher…" autocomplete="off" />
+          <div id="catalog-list" class="catalog-list"></div>
+        </div>
       </div>
     </div>
 
     <!-- Confirm dialog -->
-    <div id="confirm-dialog" class="confirm-dialog hidden">
-      <div class="confirm-box">
-        <p id="confirm-msg">Are you sure?</p>
-        <div class="confirm-actions">
-          <button id="confirm-yes" class="btn btn-save">Delete</button>
-          <button id="confirm-no" class="btn btn-cancel">Cancel</button>
+    <div id="confirm-dialog" class="dialog-overlay hidden">
+      <div class="card dialog confirm-box">
+        <div class="card-body">
+          <p id="confirm-msg" class="confirm-msg">Confirmer ?</p>
+          <div class="confirm-actions">
+            <button id="confirm-yes" class="btn btn--danger-solid">Supprimer</button>
+            <button id="confirm-no" class="btn btn--secondary">Annuler</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Appearance section -->
-    <div class="section-divider"></div>
-    <h2>Appearance</h2>
-
-    <div class="pref-row">
-      <label class="pref-label">Icon size</label>
-      <div class="pref-control">
-        <input type="range" id="pref-icon-size" min="24" max="64" step="4" value="40" />
-        <span id="pref-icon-size-val">40px</span>
+    <!-- ── Apparence ────────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Apparence</h2>
       </div>
-    </div>
+      <div class="card-body">
+        <div class="pref-row">
+          <span class="pref-label">Thème</span>
+          <div class="segmented" id="pref-theme" role="radiogroup" aria-label="Thème">
+            <button type="button" data-value="auto">Auto</button>
+            <button type="button" data-value="dark">Sombre</button>
+            <button type="button" data-value="light">Clair</button>
+          </div>
+        </div>
 
-    <div class="pref-row">
-      <label class="pref-label">Sidebar color</label>
-      <div class="pref-control">
-        <input type="color" id="pref-sidebar-color" value="#232220" />
+        <div class="pref-row">
+          <span class="pref-label">Couleur d'accentuation</span>
+          <div class="accent-swatches" id="pref-accent" role="radiogroup" aria-label="Couleur d'accentuation">
+            <button type="button" data-value="blue" title="Bleu"></button>
+            <button type="button" data-value="emerald" title="Émeraude"></button>
+            <button type="button" data-value="violet" title="Violet"></button>
+            <button type="button" data-value="gold" title="Or"></button>
+            <button type="button" data-value="raspberry" title="Framboise"></button>
+            <button type="button" data-value="lagoon" title="Lagon"></button>
+          </div>
+        </div>
+
+        <div class="pref-row">
+          <span class="pref-label">Taille des icônes</span>
+          <div class="range-row">
+            <input type="range" id="pref-icon-size" min="24" max="64" step="4" value="40" />
+            <span id="pref-icon-size-val" class="range-value">40px</span>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="pref-row">
-      <label class="pref-label">Accent color</label>
-      <div class="pref-control">
-        <input type="color" id="pref-accent-color" value="#e8500b" />
+    <!-- ── Notifications ────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Notifications</h2>
       </div>
-    </div>
-
-    <div class="section-divider"></div>
-    <h2>Notifications</h2>
-
-    <div class="pref-row">
-      <label class="pref-label">Desktop notifications</label>
-      <div class="pref-control">
-        <label class="toggle">
-          <input type="checkbox" id="pref-notifications" checked />
-          <span class="toggle-slider"></span>
-        </label>
+      <div class="card-body">
+        <div class="pref-row">
+          <span class="pref-label">Notifications de bureau</span>
+          <label class="toggle">
+            <input type="checkbox" id="pref-notifications" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
+    </section>
+
+    <div class="save-row">
+      <button id="save-prefs-btn" class="btn btn--primary">Enregistrer</button>
     </div>
 
-    <button id="save-prefs-btn" class="btn btn-save" style="margin-top:12px">Save Settings</button>
-
-    <div class="section-divider"></div>
-    <h2>Mises à jour</h2>
-
-    <div class="pref-row">
-      <label class="pref-label">Version actuelle</label>
-      <div class="pref-control"><span id="current-version">—</span></div>
-    </div>
-
-    <div class="update-actions">
-      <button id="check-update-btn" class="btn">Vérifier les mises à jour</button>
-      <button id="install-update-btn" class="btn btn-save hidden">Installer &amp; redémarrer</button>
-    </div>
-    <p id="update-status" class="hint"></p>
+    <!-- ── Mises à jour ─────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Mises à jour</h2>
+      </div>
+      <div class="card-body">
+        <div class="pref-row">
+          <span class="pref-label">Version actuelle</span>
+          <span id="current-version" class="pref-value">—</span>
+        </div>
+        <div class="update-actions">
+          <button id="check-update-btn" class="btn btn--secondary">Vérifier les mises à jour</button>
+          <button id="install-update-btn" class="btn btn--primary hidden">Installer et redémarrer</button>
+        </div>
+        <p id="update-status" class="hint update-status"></p>
+      </div>
+    </section>
 
   </div>
 
