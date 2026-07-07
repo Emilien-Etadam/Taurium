@@ -158,6 +158,17 @@ h2 {
   margin-bottom: 4px;
 }
 
+.update-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.update-actions .hidden {
+  display: none;
+}
+
 .btn-add {
   background: #16213e;
   color: #e0e0e0;

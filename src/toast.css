@@ -39,3 +39,9 @@
   background: #3a1f2b;
   border-color: #e94560;
 }
+
+.toast-info {
+  background: #16213e;
+  border-color: #4a6fa5;
+  color: #dbe6f5;
+}
