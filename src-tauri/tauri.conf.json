@@ -30,7 +30,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REMPLACER_PAR_LA_CLE_PUBLIQUE_TAURI",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFNDMwNjNGRjI4ODlFRDYKUldUV25vanlQd1pEamkzS3Q4bmEwY29SbFl0TnBLS2tQdW5kU2ZEQWxBck9Cd015VUM3RjFxZWcK",
       "endpoints": [
         "https://github.com/Emilien-Etadam/Taurium/releases/latest/download/latest.json"
       ]
