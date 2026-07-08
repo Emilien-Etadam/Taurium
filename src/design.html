@@ -3,116 +3,51 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>V3 Snow — démonstration</title>
+  <title>VSS — démonstration des composants</title>
   <link rel="stylesheet" href="snow.css" />
   <style>
-    body {
-      overflow-y: auto;
-      min-height: 100vh;
-    }
-    .demo-container {
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 24px 20px 64px;
-    }
-    .demo-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .demo-section {
-      margin-top: 24px;
-    }
+    body { overflow-y: auto; min-height: 100vh; }
+    .demo-container { max-width: 880px; margin: 0 auto; padding: 24px 20px 64px; }
+    .demo-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .demo-section { margin-top: 28px; }
     .demo-section > h2 {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 12px;
+      font-size: 20px; font-weight: 700; margin-bottom: 4px;
     }
-    .demo-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 10px;
+    .demo-note { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+    .demo-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .demo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+    .demo-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .demo-cols { grid-template-columns: 1fr; } }
+    .demo-sw { display: flex; gap: 6px; }
+    .demo-sw .sw {
+      width: 18px; height: 18px; border-radius: 50%; cursor: pointer; padding: 0;
+      border: 2px solid transparent;
     }
-    .demo-note {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-    .demo-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 8px;
-    }
-    .demo-cols {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-    @media (max-width: 640px) {
-      .demo-cols {
-        grid-template-columns: 1fr;
-      }
-    }
-    .demo-sourcelist {
-      width: 220px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      background: var(--bg);
-      padding: 4px 0;
-    }
-    .demo-swatches {
-      display: flex;
-      gap: 8px;
-    }
-    .demo-swatches button {
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      cursor: pointer;
-      border: 1px solid rgba(0, 0, 0, 0.35);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    }
-    .demo-swatches button.active {
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25),
-        0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
-    }
-    .demo-progress-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: var(--text-muted);
-      margin: 8px 0 4px;
-    }
-    .focus-demo {
-      outline: 2px solid var(--focus-ring);
-      outline-offset: 0;
-    }
+    .demo-sw .sw.on { border-color: var(--text); }
+    .demo-progrow { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin: 8px 0 4px; }
+    .demo-sourcelist { width: 240px; }
   </style>
 </head>
 <body>
   <div class="demo-container">
-    <header class="screen-head">
+    <header class="screenhead">
       <div>
-        <h1 class="screen-title">V3 Snow</h1>
-        <p class="screen-sub">Démonstration des composants — chaque état : défaut, survol, focus, désactivé, erreur.</p>
+        <h1 class="screen-title" style="font-size:24px;font-weight:700;margin:0">VSS — démonstration</h1>
+        <p class="sub">Chaque composant dans ses états : défaut, survol, focus, désactivé, erreur.</p>
       </div>
       <div class="demo-toolbar">
-        <div class="segmented" id="demo-theme">
+        <div class="seg" id="demo-theme">
           <button type="button" data-value="auto">Auto</button>
-          <button type="button" data-value="dark" class="active">Sombre</button>
+          <button type="button" data-value="dark" class="on">Sombre</button>
           <button type="button" data-value="light">Clair</button>
         </div>
-        <div class="demo-swatches" id="demo-accent">
-          <button type="button" data-value="blue" class="active" style="background:#4d9fea" title="Bleu"></button>
-          <button type="button" data-value="emerald" style="background:#2fa38a" title="Émeraude"></button>
-          <button type="button" data-value="violet" style="background:#9a77e8" title="Violet"></button>
-          <button type="button" data-value="gold" style="background:#d4b36a" title="Or"></button>
-          <button type="button" data-value="raspberry" style="background:#e0708c" title="Framboise"></button>
-          <button type="button" data-value="lagoon" style="background:#3fb2c4" title="Lagon"></button>
+        <div class="demo-sw" id="demo-accent">
+          <button type="button" class="sw on" data-value="blue" style="background:#4d9fea" title="Bleu (défaut)"></button>
+          <button type="button" class="sw" data-value="emerald" style="background:#2fa38a" title="Émeraude"></button>
+          <button type="button" class="sw" data-value="violet" style="background:#9a77e8" title="Violet"></button>
+          <button type="button" class="sw" data-value="gold" style="background:#d4b36a" title="Or"></button>
+          <button type="button" class="sw" data-value="raspberry" style="background:#e0708c" title="Framboise"></button>
+          <button type="button" class="sw" data-value="lagoon" style="background:#3fb2c4" title="Lagon"></button>
         </div>
       </div>
     </header>
@@ -120,7 +55,7 @@
     <!-- Boutons -->
     <section class="demo-section">
       <h2>Boutons</h2>
-      <p class="demo-note">Une seule action principale par zone. Hauteurs 32px, 26px en dense.</p>
+      <p class="demo-note">Recette « usinée ». Une seule action principale par zone. 32 / 26 px.</p>
       <div class="demo-row">
         <button class="btn btn--primary">Enregistrer</button>
         <button class="btn btn--secondary">Annuler</button>
@@ -132,149 +67,142 @@
         <button class="btn btn--primary btn--sm">Enregistrer</button>
         <button class="btn btn--secondary btn--sm">Annuler</button>
         <button class="btn btn--ghost btn--sm">Options</button>
-        <button class="btn btn--danger btn--sm">Supprimer</button>
       </div>
       <div class="demo-row">
         <button class="btn btn--primary" disabled>Désactivé</button>
         <button class="btn btn--secondary" disabled>Désactivé</button>
-        <button class="btn btn--primary"><span class="spinner"></span>Enregistrement…</button>
-        <button class="btn btn--primary focus-demo">Focus clavier</button>
+        <button class="btn btn--primary"><span class="spin"></span>Enregistrement…</button>
+        <button class="btn btn--secondary btn--icon" aria-label="Modifier">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /></svg>
+        </button>
       </div>
     </section>
 
-    <!-- Chips & badges -->
+    <!-- Chips & compteurs -->
     <section class="demo-section">
-      <h2>Chips &amp; badges</h2>
-      <p class="demo-note">Rond = état, carré = tag. Badge compteur : 18px, chiffres 700.</p>
+      <h2>Chips &amp; compteurs</h2>
+      <p class="demo-note">Carré = tag, pilule = statut « vivant ». Compteur : 18 px, chiffres 700.</p>
       <div class="demo-row">
-        <span class="chip">Accent</span>
-        <span class="chip chip--green">Validé</span>
-        <span class="chip chip--amber">En attente</span>
-        <span class="chip chip--red">Dépassé</span>
+        <span class="chip">Neutre</span>
+        <span class="chip chip--accent">Accent</span>
+        <span class="chip chip--green"><span class="dot"></span>Validé</span>
+        <span class="chip chip--amber"><span class="dot"></span>En attente</span>
+        <span class="chip chip--red"><span class="dot"></span>Dépassé</span>
         <span class="chip chip--purple">Provision</span>
-        <span class="chip chip--muted">Archivé</span>
       </div>
       <div class="demo-row">
-        <span class="chip chip--square">projet-2026</span>
-        <span class="chip chip--square chip--green">recette</span>
-        <span class="chip chip--square chip--muted">brouillon</span>
-        <span class="badge">3</span>
-        <span class="badge">12</span>
-        <span class="badge">99+</span>
+        <span class="chip chip--pill chip--green"><span class="dot"></span>En ligne</span>
+        <span class="chip chip--pill chip--amber"><span class="dot"></span>Absent</span>
+        <span class="count">3</span>
+        <span class="count">12</span>
+        <span class="count">99+</span>
       </div>
     </section>
 
     <!-- Champs -->
     <section class="demo-section">
       <h2>Champs</h2>
-      <p class="demo-note">Champs en creux, libellé au-dessus (12px, 600), aide 11px.</p>
+      <p class="demo-note">En creux, libellé au-dessus (12 px, 600), aide 11 px, focus cerné.</p>
       <div class="demo-cols">
-        <div>
-          <label class="field">
-            <span class="field-label">Nom</span>
-            <input type="text" class="control" placeholder="Gmail" />
-            <p class="field-hint">Affiché dans la barre latérale.</p>
-          </label>
-          <label class="field">
-            <span class="field-label">URL (erreur)</span>
-            <input type="url" class="control is-error" value="mail.google" />
-            <p class="field-error">L’URL doit commencer par http:// ou https://.</p>
-          </label>
-          <label class="field">
-            <span class="field-label">Désactivé</span>
-            <input type="text" class="control" value="Lecture seule" disabled />
-          </label>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="field">
+            <label>Nom</label>
+            <input class="input" placeholder="Gmail" />
+            <span class="hint">Affiché dans la barre latérale.</span>
+          </div>
+          <div class="field field--error">
+            <label>URL</label>
+            <input class="input is-error" value="mail.google" />
+            <span class="hint">L’URL doit commencer par http:// ou https://.</span>
+          </div>
+          <div class="field">
+            <label>Désactivé</label>
+            <input class="input" value="Lecture seule" disabled />
+          </div>
         </div>
-        <div>
-          <label class="field">
-            <span class="field-label">Groupe</span>
-            <select class="control">
-              <option>Personnel</option>
-              <option>Travail</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field-label">Notes</span>
-            <textarea class="control" placeholder="Optionnel…"></textarea>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="field">
+            <label>Groupe</label>
+            <div class="selectwrap">
+              <select class="select"><option>Personnel</option><option>Travail</option></select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Notes</label>
+            <textarea class="textarea" placeholder="Optionnel…"></textarea>
+          </div>
+          <label class="check" style="display:inline-flex;align-items:center;gap:8px">
+            <input type="checkbox" class="switch" checked /> Notifications de bureau
           </label>
         </div>
       </div>
     </section>
 
-    <!-- Segmenté + tabs -->
+    <!-- Segmenté & onglets -->
     <section class="demo-section">
       <h2>Segmenté &amp; onglets</h2>
       <div class="demo-row">
-        <div class="segmented">
-          <button type="button" class="active">Tous</button>
+        <div class="seg">
+          <button type="button" class="on">Tous</button>
           <button type="button">Actifs</button>
           <button type="button">Archivés</button>
         </div>
-        <div class="segmented">
+        <div class="seg">
           <button type="button">Semaine</button>
-          <button type="button" class="active">Mois</button>
+          <button type="button" class="on">Mois</button>
           <button type="button">Année</button>
         </div>
       </div>
       <div class="card" style="margin-top:8px">
         <div class="tabs">
-          <button type="button" class="active">Général</button>
-          <button type="button">Historique</button>
-          <button type="button">Avancé</button>
+          <button type="button" class="tab on">Général</button>
+          <button type="button" class="tab">Historique</button>
+          <button type="button" class="tab">Avancé</button>
         </div>
-        <div class="card-body">Contenu de l'onglet actif.</div>
+        <div class="card__body">Contenu de l'onglet actif.</div>
       </div>
     </section>
 
-    <!-- Carte + tête d'écran -->
+    <!-- Carte -->
     <section class="demo-section">
-      <h2>Carte &amp; tête d'écran</h2>
+      <h2>Carte &amp; en-tête</h2>
       <div class="card">
-        <div class="card-head">
-          <span class="card-title">Services</span>
+        <div class="card__head">
+          <span class="card__title">Services</span>
           <button class="btn btn--secondary btn--sm">Ajouter un service</button>
         </div>
-        <div class="card-body">
-          Corps de carte, padding 16. Surfaces passives plates : seul l'en-tête
+        <div class="card__body">
+          Corps de carte, padding 16. Surfaces passives plates ; seul l'en-tête
           porte un dégradé très léger.
         </div>
       </div>
     </section>
 
-    <!-- Stats -->
+    <!-- Tuiles stat -->
     <section class="demo-section">
       <h2>Tuiles stat</h2>
       <div class="demo-grid">
-        <div class="stat">
-          <div class="stat-key">Budget</div>
-          <div class="stat-value">12 400,00 €</div>
-        </div>
-        <div class="stat">
-          <div class="stat-key">Engagé</div>
-          <div class="stat-value">9 850,50 €</div>
-        </div>
-        <div class="stat">
-          <div class="stat-key">Reste</div>
-          <div class="stat-value">2 549,50 €</div>
-        </div>
+        <div class="stat"><span class="k">Budget</span><span class="v">12 400,00 €</span></div>
+        <div class="stat"><span class="k">Engagé</span><span class="v">9 850,50 €</span></div>
+        <div class="stat"><span class="k">Reste</span><span class="v">2 549,50 €</span></div>
       </div>
     </section>
 
-    <!-- Table -->
+    <!-- Tableau -->
     <section class="demo-section">
       <h2>Tableau</h2>
       <div class="card">
-        <table class="table">
-          <thead>
-            <tr><th>Poste</th><th>État</th><th class="num">Montant</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Hébergement</td><td><span class="chip chip--green">Validé</span></td><td class="num">1 200,00 €</td></tr>
-            <tr><td>Licences</td><td><span class="chip chip--amber">En attente</span></td><td class="num">3 640,00 €</td></tr>
-            <tr><td>Matériel</td><td><span class="chip chip--red">Dépassé</span></td><td class="num">5 010,50 €</td></tr>
-            <tr class="total"><td>Total</td><td></td><td class="num">9 850,50 €</td></tr>
-          </tbody>
-        </table>
+        <div class="tablewrap">
+          <table class="table">
+            <thead><tr><th>Poste</th><th>État</th><th class="num">Montant</th></tr></thead>
+            <tbody>
+              <tr><td>Hébergement</td><td><span class="chip chip--green"><span class="dot"></span>Validé</span></td><td class="num">1 200,00 €</td></tr>
+              <tr><td>Licences</td><td><span class="chip chip--amber"><span class="dot"></span>En attente</span></td><td class="num">3 640,00 €</td></tr>
+              <tr><td>Matériel</td><td><span class="chip chip--red"><span class="dot"></span>Dépassé</span></td><td class="num">5 010,50 €</td></tr>
+            </tbody>
+            <tfoot><tr><td>Total</td><td></td><td class="num">9 850,50 €</td></tr></tfoot>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -282,22 +210,20 @@
     <section class="demo-section">
       <h2>Source list</h2>
       <p class="demo-note">Sélection pleine largeur en dégradé accent, texte gravé.</p>
-      <div class="demo-sourcelist">
-        <div class="source-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="1" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
+      <div class="sourcelist demo-sourcelist">
+        <div class="grp">Travail</div>
+        <div class="item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
           <span>Gmail</span>
         </div>
-        <div class="source-item active">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
+        <div class="item on">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
           <span>Zulip</span>
-          <span class="badge" style="margin-left:auto;background:#fff;color:var(--accent)">3</span>
+          <span class="count" style="margin-left:auto;background:var(--action-text);color:var(--accent)">3</span>
         </div>
-        <div class="source-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M10 9H8" /><path d="M16 13H8" /><path d="M16 17H8" /></svg>
-          <span>Docmost</span>
-        </div>
-        <div class="source-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><path d="M3 10.2a2 2 0 0 1 .7-1.5l7-6a2 2 0 0 1 2.6 0l7 6a2 2 0 0 1 .7 1.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M9 22v-8h6v8" /></svg>
+        <div class="grp">Personnel</div>
+        <div class="item">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
           <span>Home Assistant</span>
         </div>
       </div>
@@ -306,13 +232,13 @@
     <!-- Progression -->
     <section class="demo-section">
       <h2>Barre de progression segmentée</h2>
-      <p class="demo-note">Verte 0–80 % · ambre 80–100 % · rouge au-delà (comprime les autres). Absente sans référence.</p>
-      <div class="demo-progress-label"><span>Sous le seuil — 55 %</span><span>5 500 / 10 000 €</span></div>
-      <div class="progress"><div class="seg-green" style="width:55%"></div></div>
-      <div class="demo-progress-label"><span>Proche du seuil — 92 %</span><span>9 200 / 10 000 €</span></div>
-      <div class="progress"><div class="seg-green" style="width:80%"></div><div class="seg-amber" style="width:12%"></div></div>
-      <div class="demo-progress-label"><span>Dépassement — 125 %</span><span>12 500 / 10 000 €</span></div>
-      <div class="progress"><div class="seg-green" style="width:64%"></div><div class="seg-amber" style="width:16%"></div><div class="seg-red" style="width:20%"></div></div>
+      <p class="demo-note">Verte 0–80 % · ambre 80–100 % · rouge au-delà (comprime les autres).</p>
+      <div class="demo-progrow"><span>Sous le seuil — 55 %</span><span>5 500 / 10 000 €</span></div>
+      <div class="progress"><i class="g" style="width:55%"></i></div>
+      <div class="demo-progrow"><span>Proche du seuil — 92 %</span><span>9 200 / 10 000 €</span></div>
+      <div class="progress"><i class="g" style="width:80%"></i><i class="y" style="width:12%"></i></div>
+      <div class="demo-progrow"><span>Dépassement — 125 %</span><span>12 500 / 10 000 €</span></div>
+      <div class="progress"><i class="g" style="width:64%"></i><i class="y" style="width:16%"></i><i class="r" style="width:20%"></i></div>
     </section>
 
     <!-- État vide -->
@@ -320,34 +246,33 @@
       <h2>État vide</h2>
       <div class="card">
         <div class="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="14" rx="1" />
-            <path d="M3 9h18" />
-          </svg>
-          <div class="empty-title">Aucun service</div>
-          <div class="empty-text">Ajoutez votre premier service pour commencer.</div>
-          <button class="btn btn--secondary btn--sm">Ajouter un service</button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M3 9h18" /></svg>
+          <span class="t">Aucun service</span>
+          <span>Ajoutez votre premier service pour commencer.</span>
+          <button class="btn btn--secondary btn--sm" style="margin-top:4px">Ajouter un service</button>
         </div>
       </div>
     </section>
   </div>
 
   <script>
-    // Bascule thème/accent de la page de démonstration (aperçu local).
     document.querySelectorAll("#demo-theme > button").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll("#demo-theme > button").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
+        document.querySelectorAll("#demo-theme > button").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
         const v = btn.dataset.value;
         if (v === "auto") delete document.documentElement.dataset.theme;
         else document.documentElement.dataset.theme = v;
       });
     });
+    const accentMap = { blue: "", emerald: "emerald", violet: "violet", gold: "gold", raspberry: "raspberry", lagoon: "lagoon" };
     document.querySelectorAll("#demo-accent > button").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.querySelectorAll("#demo-accent > button").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        document.documentElement.dataset.accent = btn.dataset.value;
+        document.querySelectorAll("#demo-accent > button").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+        const preset = accentMap[btn.dataset.value];
+        if (preset) document.documentElement.dataset.accent = preset;
+        else delete document.documentElement.dataset.accent;
       });
     });
     document.documentElement.dataset.theme = "dark";

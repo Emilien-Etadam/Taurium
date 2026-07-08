@@ -58,10 +58,10 @@ function applySnowPrefs() {
 
 function renderThemeControls() {
   document.querySelectorAll("#pref-theme > button").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.value === selectedTheme);
+    btn.classList.toggle("on", btn.dataset.value === selectedTheme);
   });
   document.querySelectorAll("#pref-accent > button").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.value === selectedAccent);
+    btn.classList.toggle("on", btn.dataset.value === selectedAccent);
   });
 }
 
@@ -629,7 +629,7 @@ function renderCatalogList() {
         <div class="name">${escapeHtml(recipe.name)}</div>
         <div class="url">${escapeHtml(recipe.url)}</div>
       </div>
-      ${alreadyAdded ? '<span class="catalog-badge">Ajouté</span>' : ""}
+      ${alreadyAdded ? '<span class="chip chip--green">Ajouté</span>' : ""}
     `;
     item.querySelector(".icon").appendChild(serviceIconEl(recipe.icon));
     if (!alreadyAdded) {

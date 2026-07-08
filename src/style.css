@@ -86,12 +86,12 @@ body {
 /* Sélection : dégradé accent pleine largeur, texte clair « gravé ». */
 .service-icon.active,
 .settings-icon.active {
-  color: #fff;
+  color: var(--action-text);
   text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.2);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--accent) 72%, #fff),
-    color-mix(in srgb, var(--accent) 82%, #000)
+    color-mix(in srgb, var(--accent) 90%, #fff),
+    color-mix(in srgb, var(--accent) 92%, #000)
   );
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
@@ -100,7 +100,7 @@ body {
 .sidebar-toggle {
   height: 28px;
   margin-bottom: 2px;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .sidebar-toggle:hover {
   color: var(--text);
@@ -137,13 +137,13 @@ body {
   font-family: inherit;
   color: var(--text);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--control-bg) 96%, #000);
+  background: color-mix(in srgb, var(--control) 96%, #000);
   border: 1px solid var(--border);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
   transition: border-color 120ms, box-shadow 120ms;
 }
 .sidebar-search input::placeholder {
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .sidebar-search input:focus {
   outline: none;
@@ -153,7 +153,7 @@ body {
 }
 .no-match {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted);
   text-align: center;
   padding: 12px 8px;
 }
@@ -213,14 +213,14 @@ body {
   width: calc(var(--icon-size) * 0.55);
   height: calc(var(--icon-size) * 0.55);
   display: block;
-  color: var(--text-muted);
+  color: var(--muted);
   transition: color 120ms;
 }
 .service-icon:hover .icon-lucide {
   color: var(--text);
 }
 .service-icon.active .icon-lucide {
-  color: #fff;
+  color: var(--action-text);
 }
 
 /* Libellés (sidebar déployée) */
@@ -237,14 +237,14 @@ body {
 }
 .sidebar-toggle .label,
 .settings-icon:not(.active) .label {
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .sidebar-toggle:hover .label,
 .settings-icon:hover .label {
   color: var(--text);
 }
 .settings-icon.active .label {
-  color: #fff;
+  color: var(--action-text);
 }
 
 /* ── États & notifications ───────────────────────────────────────────── */
@@ -322,7 +322,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -332,7 +332,7 @@ body {
 
 /* ── Réglages ────────────────────────────────────────────────────────── */
 .settings-icon {
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .settings-icon:hover {
   color: var(--text);
@@ -371,11 +371,11 @@ body {
 }
 .empty-icon {
   display: flex;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .empty-text {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 /* ── Voile de chargement ─────────────────────────────────────────────── */
