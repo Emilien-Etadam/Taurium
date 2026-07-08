@@ -386,6 +386,30 @@ fn create_service_webview_inner(
     let sid_for_load = service.id.clone();
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
+
+    // Idempotency guard. All service webviews are pre-created during setup(),
+    // and there is a brief startup window where `app.get_webview(id)` — checked
+    // off the main thread in switch_to — still returns None even though the
+    // label is already registered. Without this, switch_to would call add_child
+    // a second time and fail with "a webview with label `…` already exists"
+    // (surfaced as a toast on the last-active service at launch). Here we run on
+    // the main thread, where get_webview is authoritative: if the webview
+    // already exists, just reconcile our bookkeeping and skip re-creation.
+    if app.get_webview(&service.id).is_some() {
+        let mut created = state
+            .created_ids
+            .lock()
+            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+        if !created.contains(&service.id) {
+            created.push(service.id.clone());
+        }
+        eprintln!(
+            "[Taurium] Webview '{}' already exists, skipping creation",
+            service.id
+        );
+        return Ok(());
+    }
+
     let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
