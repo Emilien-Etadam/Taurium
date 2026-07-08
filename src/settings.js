@@ -4,10 +4,12 @@ let editingIndex = -1;
 let deleteIndex = -1;
 let dragSrcIndex = -1;
 let iconDataUrl = ""; // stores base64 data URL for image icon
+let iconLucide = ""; // nom d’icône Lucide sélectionné (sans préfixe)
 let savePrefsFeedbackTimer = null;
 let loadedPrefs = {}; // full prefs from backend, so save preserves fields not shown here
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
+import { serviceIconEl, lucideEl, allLucideNames, isLucideIcon, lucideName, lucideExists, normalizeQuery } from "./icons.js";
 import { checkForUpdate, installAndRelaunch } from "./updater.js";
 import { getVersion } from "@tauri-apps/api/app";
 
@@ -145,6 +147,23 @@ async function init() {
   document.getElementById("input-icon-file").addEventListener("change", handleIconFile);
   document.getElementById("icon-preview-clear").addEventListener("click", clearIconPreview);
 
+  // Sélecteur d'icônes Lucide
+  document.getElementById("icon-picker-btn").addEventListener("click", showIconPicker);
+  document.getElementById("icon-picker-close").addEventListener("click", hideIconPicker);
+  document.getElementById("icon-picker-search").addEventListener("input", filterIconPicker);
+  document.getElementById("icon-picker-search").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideIconPicker();
+  });
+  // Saisir un emoji remplace l'icône Lucide ou l'image sélectionnée
+  document.getElementById("input-icon").addEventListener("input", (e) => {
+    if (e.target.value.trim()) {
+      iconLucide = "";
+      iconDataUrl = "";
+      document.getElementById("input-icon-file").value = "";
+      refreshIconPreview();
+    }
+  });
+
   const zoomInput = document.getElementById("input-zoom");
   const zoomVal = document.getElementById("input-zoom-val");
   zoomInput.addEventListener("input", () => {
@@ -190,16 +209,8 @@ function renderServices() {
       </div>
     `;
 
-    // Render icon safely: image via <img src>, otherwise emoji as text.
-    // Never inject the icon through innerHTML (avoids HTML injection).
-    const iconSpan = item.querySelector(".icon");
-    if (service.icon.startsWith("data:image")) {
-      const img = document.createElement("img");
-      img.src = service.icon;
-      iconSpan.appendChild(img);
-    } else {
-      iconSpan.textContent = service.icon;
-    }
+    // Rendu sûr de l'icône (jamais via innerHTML) : Lucide, image ou emoji.
+    item.querySelector(".icon").appendChild(serviceIconEl(service.icon));
     item.querySelector(".edit").addEventListener("click", (e) => {
       e.stopPropagation();
       showEditForm(index);
@@ -306,7 +317,28 @@ function cancelDelete() {
   document.getElementById("confirm-dialog").classList.add("hidden");
 }
 
-// --- Icon file import ---
+// --- Icône : trois sources (Lucide / emoji / image), un seul aperçu ---
+function refreshIconPreview() {
+  const slot = document.getElementById("icon-preview-slot");
+  const preview = document.getElementById("icon-preview");
+  slot.innerHTML = "";
+  const value = iconDataUrl || (iconLucide ? "lucide:" + iconLucide : "");
+  if (value) {
+    slot.appendChild(serviceIconEl(value));
+    preview.classList.remove("hidden");
+  } else {
+    preview.classList.add("hidden");
+  }
+}
+
+function setLucideIcon(name) {
+  iconLucide = name;
+  iconDataUrl = "";
+  document.getElementById("input-icon").value = "";
+  document.getElementById("input-icon-file").value = "";
+  refreshIconPreview();
+}
+
 function handleIconFile(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -314,19 +346,68 @@ function handleIconFile(e) {
   const reader = new FileReader();
   reader.onload = function(ev) {
     iconDataUrl = ev.target.result;
-    document.getElementById("icon-preview-img").src = iconDataUrl;
-    document.getElementById("icon-preview").classList.remove("hidden");
+    iconLucide = "";
     document.getElementById("input-icon").value = "";
-    document.getElementById("input-icon").placeholder = "Using image";
+    refreshIconPreview();
   };
   reader.readAsDataURL(file);
 }
 
 function clearIconPreview() {
   iconDataUrl = "";
-  document.getElementById("icon-preview").classList.add("hidden");
-  document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
+  iconLucide = "";
   document.getElementById("input-icon-file").value = "";
+  refreshIconPreview();
+}
+
+// --- Sélecteur d'icônes Lucide (toutes les icônes, recherche) ---
+let iconPickerBuilt = false;
+
+function buildIconPicker() {
+  if (iconPickerBuilt) return;
+  iconPickerBuilt = true;
+  const grid = document.getElementById("icon-picker-grid");
+  const frag = document.createDocumentFragment();
+  for (const name of allLucideNames()) {
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "icon-cell";
+    cell.title = name;
+    cell.dataset.name = name;
+    cell.setAttribute("role", "option");
+    cell.appendChild(lucideEl(name));
+    cell.addEventListener("click", () => {
+      setLucideIcon(name);
+      hideIconPicker();
+    });
+    frag.appendChild(cell);
+  }
+  grid.appendChild(frag);
+}
+
+function filterIconPicker() {
+  const q = normalizeQuery(document.getElementById("icon-picker-search").value.trim());
+  const grid = document.getElementById("icon-picker-grid");
+  let shown = 0;
+  grid.querySelectorAll(".icon-cell").forEach((cell) => {
+    const match = !q || normalizeQuery(cell.dataset.name).includes(q);
+    cell.style.display = match ? "" : "none";
+    if (match) shown++;
+  });
+  document.getElementById("icon-picker-empty").classList.toggle("hidden", shown > 0);
+}
+
+function showIconPicker() {
+  buildIconPicker();
+  const search = document.getElementById("icon-picker-search");
+  search.value = "";
+  filterIconPicker();
+  document.getElementById("icon-picker-dialog").classList.remove("hidden");
+  search.focus();
+}
+
+function hideIconPicker() {
+  document.getElementById("icon-picker-dialog").classList.add("hidden");
 }
 
 // --- Form ---
@@ -339,12 +420,12 @@ function showAddForm() {
   document.getElementById("input-group").value = "";
   refreshGroupSuggestions();
   document.getElementById("input-icon").value = "";
-  document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
+  iconLucide = "";
   document.getElementById("input-user-agent").value = "";
   document.getElementById("input-zoom").value = "1";
   document.getElementById("input-zoom-val").textContent = "1.0×";
-  document.getElementById("icon-preview").classList.add("hidden");
   document.getElementById("input-icon-file").value = "";
+  refreshIconPreview();
   clearErrors();
   document.getElementById("edit-form").classList.remove("hidden");
 }
@@ -362,21 +443,22 @@ function showEditForm(index) {
   document.getElementById("input-zoom").value = String(z);
   document.getElementById("input-zoom-val").textContent = Number(z).toFixed(1) + "×";
 
-  // Handle image vs emoji icon
+  // Icône : image importée, Lucide, ou emoji hérité
   if (s.icon.startsWith("data:image")) {
     iconDataUrl = s.icon;
+    iconLucide = "";
     document.getElementById("input-icon").value = "";
-    document.getElementById("input-icon").placeholder = "Using image";
-    document.getElementById("icon-preview-img").src = s.icon;
-    document.getElementById("icon-preview").classList.remove("hidden");
+  } else if (isLucideIcon(s.icon)) {
+    iconDataUrl = "";
+    iconLucide = lucideName(s.icon);
+    document.getElementById("input-icon").value = "";
   } else {
     iconDataUrl = "";
+    iconLucide = "";
     document.getElementById("input-icon").value = s.icon;
-    document.getElementById("input-icon").placeholder = "\uD83D\uDCE7 or use image";
-    document.getElementById("icon-preview").classList.add("hidden");
   }
-
   document.getElementById("input-icon-file").value = "";
+  refreshIconPreview();
   clearErrors();
   document.getElementById("edit-form").classList.remove("hidden");
 }
@@ -442,9 +524,10 @@ async function saveForm() {
     }
   }
 
-  // Validate icon: emoji only (images go through the file picker)
-  if (!iconDataUrl && emojiIcon && !isEmojiIcon(emojiIcon)) {
-    showError("input-icon", "Utilisez un seul emoji, ou importez une image.");
+  // Icône saisie librement : un seul emoji (Lucide et image passent par
+  // leurs sélecteurs respectifs)
+  if (!iconDataUrl && !iconLucide && emojiIcon && !isEmojiIcon(emojiIcon)) {
+    showError("input-icon", "Choisissez une icône, un seul emoji, ou importez une image.");
     valid = false;
   }
 
@@ -452,14 +535,16 @@ async function saveForm() {
 
   const id = editingIndex === -1 ? nanoid(10) : services[editingIndex].id;
 
-  // Determine icon: data URL > emoji > default
+  // Icône retenue : image importée > Lucide > emoji > globe par défaut
   let icon;
   if (iconDataUrl) {
     icon = iconDataUrl;
+  } else if (iconLucide && lucideExists(iconLucide)) {
+    icon = "lucide:" + iconLucide;
   } else if (emojiIcon) {
     icon = emojiIcon;
   } else {
-    icon = "\uD83C\uDF10";
+    icon = "lucide:Globe";
   }
 
   if (editingIndex === -1) {
@@ -539,13 +624,14 @@ function renderCatalogList() {
     item.className = "catalog-item" + (alreadyAdded ? " catalog-item-added" : "");
     item.disabled = alreadyAdded;
     item.innerHTML = `
-      <span class="icon">${escapeHtml(recipe.icon)}</span>
+      <span class="icon"></span>
       <div class="info">
         <div class="name">${escapeHtml(recipe.name)}</div>
         <div class="url">${escapeHtml(recipe.url)}</div>
       </div>
       ${alreadyAdded ? '<span class="catalog-badge">Ajouté</span>' : ""}
     `;
+    item.querySelector(".icon").appendChild(serviceIconEl(recipe.icon));
     if (!alreadyAdded) {
       item.addEventListener("click", () => addFromCatalog(recipe));
     }

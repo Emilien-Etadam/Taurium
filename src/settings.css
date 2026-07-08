@@ -91,15 +91,22 @@ body {
 .service-item .icon {
   font-size: 16px;
   width: 22px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  color: var(--text-muted);
 }
 .service-item .icon img {
   width: 18px;
   height: 18px;
   border-radius: var(--radius-sm);
   object-fit: contain;
-  vertical-align: middle;
+}
+.service-item .icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .service-item .info {
@@ -189,14 +196,74 @@ body {
   gap: 8px;
   margin-top: 8px;
 }
-.icon-preview img {
+.icon-preview-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   border-radius: var(--radius);
-  object-fit: contain;
   background: color-mix(in srgb, var(--control-bg) 96%, #000);
   border: 1px solid var(--border);
-  padding: 3px;
+  color: var(--text);
+}
+.icon-preview-slot img {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+.icon-preview-slot svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+/* Sélecteur d'icônes Lucide */
+.icon-picker-box {
+  width: min(560px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.icon-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+  gap: 2px;
+  overflow-y: auto;
+  max-height: 52vh;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.icon-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-height: 32px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.icon-cell:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.icon-cell svg {
+  width: 17px;
+  height: 17px;
+  display: block;
 }
 
 .form-actions {
@@ -289,8 +356,16 @@ body {
 .catalog-item .icon {
   font-size: 16px;
   width: 22px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  color: var(--text-muted);
+}
+.catalog-item .icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 .catalog-item .info {
   flex: 1;

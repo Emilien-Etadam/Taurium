@@ -207,6 +207,22 @@ body {
   pointer-events: none;
 }
 
+/* Icônes Lucide de service : trait fin, couleur courante (muted au repos,
+   texte au survol, blanc sur la sélection accent). */
+.service-icon .icon-lucide {
+  width: calc(var(--icon-size) * 0.55);
+  height: calc(var(--icon-size) * 0.55);
+  display: block;
+  color: var(--text-muted);
+  transition: color 120ms;
+}
+.service-icon:hover .icon-lucide {
+  color: var(--text);
+}
+.service-icon.active .icon-lucide {
+  color: #fff;
+}
+
 /* Libellés (sidebar déployée) */
 .label {
   font-size: 13px;

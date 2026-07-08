@@ -14,6 +14,7 @@ const OVERLAY_FALLBACK_MS = 10000;
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 import { checkForUpdate } from "./updater.js";
+import { serviceIconEl } from "./icons.js";
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -23,19 +24,8 @@ function makeGlyphWrap(service) {
   const wrap = document.createElement("span");
   wrap.className = "glyph-wrap";
 
-  // Support both emoji and image icons
-  if (service.icon.startsWith("data:image")) {
-    const img = document.createElement("img");
-    img.src = service.icon;
-    img.className = "icon-img";
-    img.alt = "";
-    wrap.appendChild(img);
-  } else {
-    const glyph = document.createElement("span");
-    glyph.className = "glyph";
-    glyph.textContent = service.icon;
-    wrap.appendChild(glyph);
-  }
+  // Lucide (svg), image importée ou emoji hérité
+  wrap.appendChild(serviceIconEl(service.icon));
 
   const dot = document.createElement("span");
   dot.className = "status-dot " + (serviceStates[service.id] || "idle");
