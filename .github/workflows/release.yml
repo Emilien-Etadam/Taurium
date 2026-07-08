@@ -74,10 +74,11 @@ jobs:
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: "Taurium ${{ github.event.inputs.version || github.ref_name }}"
           releaseBody: "Téléchargez l'installateur pour votre plateforme ci-dessous."
-          # Draft so you can review before publishing. NOTE: the updater endpoint
-          # (releases/latest/download/latest.json) only resolves once the release
-          # is PUBLISHED, so remember to publish it for auto-updates to work.
-          releaseDraft: true
+          # Publish the release immediately (no draft). The updater endpoint
+          # (releases/latest/download/latest.json) only resolves on a PUBLISHED
+          # release, so auto-publishing makes auto-updates work without a manual
+          # "Publish" click. Set to true again if you want a review gate first.
+          releaseDraft: false
           prerelease: false
           # Generate/attach the updater manifest (latest.json). Default is true
           # when the updater is configured; set explicitly for clarity.
