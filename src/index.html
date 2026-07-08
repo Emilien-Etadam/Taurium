@@ -4,13 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Taurium</title>
+  <link rel="stylesheet" href="snow.css" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="toast.css" />
 </head>
 <body>
   <aside id="sidebar">
     <div class="sidebar-toggle" id="sidebar-toggle" role="button" tabindex="0" aria-label="Développer / réduire la barre latérale" aria-expanded="false" title="Développer / réduire">
-      <span class="glyph-wrap"><span class="glyph toggle-chevron">&raquo;</span></span>
+      <span class="glyph-wrap">
+        <svg class="toggle-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 4l4 4-4 4" />
+        </svg>
+      </span>
       <span class="label">Réduire</span>
     </div>
 
@@ -23,14 +28,24 @@
 
     <!-- Empty state -->
     <div id="empty-state" class="empty-state hidden">
-      <div class="empty-icon">+</div>
-      <div class="empty-text">No services</div>
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" width="20" height="20" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v8" /><path d="M8 12h8" />
+        </svg>
+      </div>
+      <div class="empty-text">Aucun service.<br />Ajoutez-en depuis les réglages.</div>
     </div>
 
     <div class="sidebar-bottom">
-      <div class="settings-icon" id="settings-btn" role="button" tabindex="0" aria-label="Settings" title="Settings (Ctrl+,)">
-        <span class="glyph-wrap"><span class="glyph">&#9881;</span></span>
-        <span class="label">Settings</span>
+      <div class="settings-icon" id="settings-btn" role="button" tabindex="0" aria-label="Réglages" title="Réglages (Ctrl+,)">
+        <span class="glyph-wrap">
+          <svg class="gear-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </span>
+        <span class="label">Réglages</span>
       </div>
     </div>
   </aside>

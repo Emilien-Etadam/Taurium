@@ -1,0 +1,398 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Design System « VSS » — implémentation Taurium
+   Reprise fidèle de la référence VSS v7. Outil de travail dense :
+   Dieter Rams (le relief sert la fonction) + matière Snow Leopard
+   (contrôles usinés, champs en creux), sans pastiche. Sombre par défaut,
+   clair maintenu. Angles nets 3px. Neutres CHAUDS.
+   L'accent est une préférence utilisateur (preset calibré via data-accent) ;
+   tout l'interactif dérive de var(--accent).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. TOKENS ──────────────────────────────────────────────────────── */
+:root {
+  /* thème clair */
+  --bg: #f5f4f2; --surface: #ffffff; --raised: #ffffff; --soft: #efedea;
+  --border: #e3e1dd; --text: #292724; --muted: #6d6963; --action-text: #ffffff;
+  --control: #f1efec; --hover: #e9e7e3;
+  --accent: #0a6cc2; --accent-soft: #e8f1fb; --focus-ring: rgba(10, 108, 194, .4);
+  --green: #357f31; --green-soft: #e7f3e7;
+  --red: #c53030; --red-soft: #fbe9e9;
+  --amber: #a87908; --amber-soft: #faf3df;
+  --purple: #6b46b8; --purple-soft: #f2edfb;
+  --radius: 3px; --radius-sm: 2px; --radius-full: 999px;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, .12), 0 5px 12px rgba(0, 0, 0, .16);
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+}
+
+/* Jeu sombre (défaut) appliqué par prefers-color-scheme et par data-theme */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #1a1918; --surface: #212020; --raised: #282726; --soft: #302f2d;
+    --border: #3d3b38; --text: #d8d5d0; --muted: #9a968f;
+    --control: #2e2d2b; --hover: rgba(255, 251, 245, .06);
+    --accent: #4d9fea; --accent-soft: rgba(77, 159, 234, .18); --focus-ring: rgba(77, 159, 234, .45);
+    --green: #83cd7f; --green-soft: rgba(131, 205, 127, .14);
+    --red: #ef8574; --red-soft: rgba(239, 133, 116, .14);
+    --amber: #d3af2a; --amber-soft: rgba(211, 175, 42, .13);
+    --purple: #c793c2; --purple-soft: rgba(199, 147, 194, .14);
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, .45), 0 5px 12px rgba(0, 0, 0, .38);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1a1918; --surface: #212020; --raised: #282726; --soft: #302f2d;
+  --border: #3d3b38; --text: #d8d5d0; --muted: #9a968f;
+  --control: #2e2d2b; --hover: rgba(255, 251, 245, .06);
+  --accent: #4d9fea; --accent-soft: rgba(77, 159, 234, .18); --focus-ring: rgba(77, 159, 234, .45);
+  --green: #83cd7f; --green-soft: rgba(131, 205, 127, .14);
+  --red: #ef8574; --red-soft: rgba(239, 133, 116, .14);
+  --amber: #d3af2a; --amber-soft: rgba(211, 175, 42, .13);
+  --purple: #c793c2; --purple-soft: rgba(199, 147, 194, .14);
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, .45), 0 5px 12px rgba(0, 0, 0, .38);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f4f2; --surface: #ffffff; --raised: #ffffff; --soft: #efedea;
+  --border: #e3e1dd; --text: #292724; --muted: #6d6963;
+  --control: #f1efec; --hover: #e9e7e3;
+  --accent: #0a6cc2; --accent-soft: #e8f1fb; --focus-ring: rgba(10, 108, 194, .4);
+  --green: #357f31; --green-soft: #e7f3e7;
+  --red: #c53030; --red-soft: #fbe9e9;
+  --amber: #a87908; --amber-soft: #faf3df;
+  --purple: #6b46b8; --purple-soft: #f2edfb;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, .12), 0 5px 12px rgba(0, 0, 0, .16);
+}
+
+/* Presets d'accent : un seul ton calibré par preset (dérive soft/ring).
+   L'absence de data-accent = bleu, dont la valeur suit le thème. */
+:root[data-accent="emerald"] { --accent: #2fa38a; }
+:root[data-accent="violet"] { --accent: #9a77e8; }
+:root[data-accent="gold"] { --accent: #d4b36a; }
+:root[data-accent="raspberry"] { --accent: #e0708c; }
+:root[data-accent="lagoon"] { --accent: #3fb2c4; }
+:root[data-accent="emerald"], :root[data-accent="violet"],
+:root[data-accent="gold"], :root[data-accent="raspberry"],
+:root[data-accent="lagoon"] {
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ── 2. BASE ────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+.hidden { display: none !important; }
+
+/* ── 3. BOUTONS — matière « usinée » ────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 14px; border-radius: var(--radius);
+  font: inherit; font-weight: 500; border: 1px solid transparent; cursor: pointer;
+  white-space: nowrap; color: var(--text);
+  transition: background .12s, border-color .12s, color .12s, filter .12s;
+}
+.btn--sm { height: 26px; padding: 0 10px; font-size: 12px; }
+.btn--icon { width: 32px; padding: 0; }
+.btn--icon.btn--sm { width: 26px; }
+.btn--icon svg { width: 16px; height: 16px; }
+.btn--icon.btn--sm svg { width: 14px; height: 14px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; pointer-events: none; }
+.btn svg { width: 14px; height: 14px; }
+
+/* Recette n°1 : bouton plein (UN seul par zone) */
+.btn--primary {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 90%, #fff) 0%,
+    var(--accent) 55%,
+    color-mix(in srgb, var(--accent) 92%, #000) 100%);
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .22);
+  color: var(--action-text);
+}
+.btn--primary:hover { filter: brightness(1.06); }
+.btn--primary:active {
+  filter: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 88%, #000),
+    color-mix(in srgb, var(--accent) 97%, #fff));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .3);
+}
+
+/* Recette n°2 : bouton secondaire */
+.btn--secondary {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--raised) 92%, #fff),
+    color-mix(in srgb, var(--raised) 96%, #000));
+  border-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 1px 1px rgba(0, 0, 0, .12);
+}
+.btn--secondary:hover { filter: brightness(1.04); }
+.btn--secondary:active {
+  filter: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--raised) 93%, #000),
+    color-mix(in srgb, var(--raised) 97%, #fff));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .22);
+}
+
+.btn--ghost { background: transparent; }
+.btn--ghost:hover { background: var(--hover); }
+.btn--ghost:active { background: var(--soft); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .15); }
+
+.btn--danger {
+  background: transparent; color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 55%, transparent);
+}
+.btn--danger:hover { background: var(--red-soft); }
+.btn--danger:active { background: var(--red-soft); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .15); }
+
+.btn--danger-solid {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--red) 90%, #fff) 0%,
+    var(--red) 55%,
+    color-mix(in srgb, var(--red) 92%, #000) 100%);
+  border-color: color-mix(in srgb, var(--red) 70%, #000);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, .22);
+  color: var(--action-text);
+}
+.btn--danger-solid:hover { filter: brightness(1.06); }
+.btn--danger-solid:active {
+  filter: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--red) 88%, #000),
+    color-mix(in srgb, var(--red) 97%, #fff));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .3);
+}
+
+.btn .spin {
+  width: 12px; height: 12px; border: 2px solid currentColor;
+  border-top-color: transparent; border-radius: 50%;
+  animation: vss-rot .7s linear infinite;
+}
+@keyframes vss-rot { to { transform: rotate(360deg); } }
+
+/* ── 4. CHIPS & COMPTEUR ────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px;
+  border-radius: var(--radius); font-size: 12px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--soft); color: var(--muted);
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip--pill { border-radius: var(--radius-full); } /* statuts « vivants » */
+.chip--accent {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.chip--green {
+  background: var(--green-soft); color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 40%, transparent);
+}
+.chip--red {
+  background: var(--red-soft); color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+}
+.chip--amber {
+  background: var(--amber-soft); color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 40%, transparent);
+}
+.chip--purple {
+  background: var(--purple-soft); color: var(--purple);
+  border-color: color-mix(in srgb, var(--purple) 40%, transparent);
+}
+.count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-full);
+  background: var(--accent); color: var(--action-text);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* ── 5. CHAMPS — recette n°3 : EN CREUX ─────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+.field > label { font-size: 12px; font-weight: 600; }
+.field .req { color: var(--red); }
+.input, .select, .textarea {
+  font: inherit; color: var(--text); width: 100%; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--control) 96%, #000);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .16);
+  transition: border-color .12s, box-shadow .12s;
+}
+.textarea { height: auto; min-height: 70px; padding: 8px 10px; resize: vertical; }
+.input:hover, .select:hover, .textarea:hover { border-color: var(--muted); }
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--focus-ring); outline-offset: 1px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .16);
+}
+.input::placeholder, .textarea::placeholder { color: var(--muted); }
+.field .hint { font-size: 11px; color: var(--muted); }
+.field--error .input, .input.is-error { border-color: var(--red); }
+.field--error .hint { color: var(--red); }
+.selectwrap { position: relative; }
+.selectwrap::after {
+  content: ""; position: absolute; right: 10px; top: 50%; margin-top: -6px;
+  width: 7px; height: 7px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg); pointer-events: none;
+}
+.select { appearance: none; padding-right: 28px; cursor: pointer; }
+
+/* ── 6. INTERRUPTEUR ────────────────────────────────────────────────── */
+.switch {
+  position: relative; appearance: none; margin: 0; width: 36px; height: 20px; cursor: pointer;
+  border-radius: var(--radius-full); border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--control) 96%, #000);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .2);
+  transition: background .15s, border-color .15s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: linear-gradient(180deg, #fff, #d9d6d1);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .3); transition: left .15s;
+}
+.switch:checked {
+  border-color: color-mix(in srgb, var(--accent) 70%, #000);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 90%, #000),
+    color-mix(in srgb, var(--accent) 94%, #fff));
+}
+.switch:checked::after { left: 18px; }
+.switch:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* ── 8. CARTE & EN-TÊTE D'ÉCRAN — recette n°6 ──────────────────────── */
+.card {
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.card__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s3); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--raised) 92%, #fff),
+    color-mix(in srgb, var(--raised) 96%, #000));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+}
+.card__title { font-size: 15px; font-weight: 600; margin: 0; }
+.card__body { padding: var(--s4); }
+.screenhead {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--s4); flex-wrap: wrap; margin: 0 0 var(--s5);
+}
+.screenhead h3, .screenhead .screen-title { font-size: 20px; font-weight: 700; margin: 0; }
+.screenhead .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.stat {
+  display: inline-flex; flex-direction: column; gap: 2px; min-width: 100px;
+  padding: var(--s2) var(--s3); border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--soft);
+}
+.stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.stat .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── 9. TABLE ───────────────────────────────────────────────────────── */
+.tablewrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table th {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
+  color: var(--muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.table td { padding: 8px 12px; border-bottom: 1px solid var(--border); height: 36px; }
+.table tbody tr { transition: background .1s; }
+.table tbody tr:hover { background: var(--hover); }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table tfoot td { font-weight: 800; font-size: 15px; border-bottom: 0; border-top: 2px solid var(--border); }
+
+/* ── 11. ONGLETS ────────────────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 2px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--raised) 94%, #fff),
+    color-mix(in srgb, var(--raised) 97%, #000));
+}
+.tab {
+  appearance: none; background: transparent; border: none; font: inherit; cursor: pointer;
+  padding: 8px 14px; color: var(--muted); font-weight: 500;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); background: var(--hover); }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ── 12. SEGMENTÉ — recette n°5 ─────────────────────────────────────── */
+.seg {
+  display: inline-flex; border-radius: var(--radius); overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
+}
+.seg button {
+  appearance: none; border: none; font: inherit; font-weight: 500; color: var(--text);
+  padding: 6px 14px; cursor: pointer;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--raised) 92%, #fff),
+    color-mix(in srgb, var(--raised) 96%, #000));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10);
+}
+.seg button + button { border-left: 1px solid color-mix(in srgb, var(--muted) 40%, transparent); }
+.seg button.on {
+  color: var(--action-text);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 84%, #000),
+    color-mix(in srgb, var(--accent) 96%, #fff));
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .3);
+}
+
+/* ── 13. SOURCE LIST — recette n°4 ──────────────────────────────────── */
+.sourcelist {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; background: var(--soft);
+}
+.sourcelist .grp {
+  padding: 8px 12px 3px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .05em; font-weight: 700; color: var(--muted);
+}
+.sourcelist .item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  cursor: pointer; font-weight: 500;
+}
+.sourcelist .item:hover { background: var(--hover); }
+.sourcelist .item.on {
+  color: var(--action-text); text-shadow: 0 -1px 0 rgba(0, 0, 0, .2);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 90%, #fff),
+    color-mix(in srgb, var(--accent) 92%, #000));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+
+/* ── 14. PROGRESSION SEGMENTÉE & ÉTAT VIDE ──────────────────────────── */
+.progress {
+  display: flex; height: 5px; border-radius: var(--radius-full);
+  overflow: hidden; background: var(--soft); min-width: 220px;
+}
+.progress i { display: block; height: 100%; }
+.progress .g { background: var(--green); }
+.progress .y { background: var(--amber); }
+.progress .r { background: var(--red); }
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s2);
+  padding: var(--s8); text-align: center; color: var(--muted);
+}
+.empty .t { font-weight: 600; color: var(--text); }
+.empty svg { width: 34px; height: 34px; opacity: .5; }
+
+/* ── 16. SURFACES FLOTTANTES ────────────────────────────────────────── */
+.backdrop { background: rgba(0, 0, 0, .4); }
+.modal {
+  width: 400px; max-width: 100%; background: var(--raised);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-float); overflow: hidden;
+}

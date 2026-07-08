@@ -14,6 +14,7 @@ const OVERLAY_FALLBACK_MS = 10000;
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 import { checkForUpdate } from "./updater.js";
+import { serviceIconEl } from "./icons.js";
 
 function getInvoke() {
   return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
@@ -23,19 +24,8 @@ function makeGlyphWrap(service) {
   const wrap = document.createElement("span");
   wrap.className = "glyph-wrap";
 
-  // Support both emoji and image icons
-  if (service.icon.startsWith("data:image")) {
-    const img = document.createElement("img");
-    img.src = service.icon;
-    img.className = "icon-img";
-    img.alt = "";
-    wrap.appendChild(img);
-  } else {
-    const glyph = document.createElement("span");
-    glyph.className = "glyph";
-    glyph.textContent = service.icon;
-    wrap.appendChild(glyph);
-  }
+  // Lucide (svg), image importée ou emoji hérité
+  wrap.appendChild(serviceIconEl(service.icon));
 
   const dot = document.createElement("span");
   dot.className = "status-dot " + (serviceStates[service.id] || "idle");
@@ -240,25 +230,36 @@ async function init() {
     // Non-blocking check for app updates (notify only; install is manual via Settings)
     checkUpdatesOnStartup();
   } catch (err) {
-    showToast("Init error: " + formatInvokeError(err), { durationMs: 10000 });
+    showToast("Erreur au démarrage : " + formatInvokeError(err), { durationMs: 10000 });
     console.error("Init error:", err);
   }
 }
+
+// V3 Snow : le thème est sombre/clair/auto (auto = prefers-color-scheme) et
+// l'accent est un preset calibré (data-accent) — jamais une couleur libre.
+const ACCENT_PRESETS = ["blue", "emerald", "violet", "gold", "raspberry", "lagoon"];
 
 function applyPreferences(prefs) {
   const root = document.documentElement;
   iconSize = prefs.icon_size;
   root.style.setProperty("--icon-size", prefs.icon_size + "px");
-  root.style.setProperty("--sidebar-color", prefs.sidebar_color);
-  root.style.setProperty("--accent-color", prefs.accent_color);
+  root.dataset.accent = ACCENT_PRESETS.includes(prefs.accent_color)
+    ? prefs.accent_color
+    : "blue";
+  if (prefs.theme === "light" || prefs.theme === "dark") {
+    root.dataset.theme = prefs.theme;
+  } else {
+    delete root.dataset.theme; // auto : suit prefers-color-scheme
+  }
   // Sidebar width must track icon size so large icons don't overflow/overlap.
   syncSidebarWidth();
 }
 
-// Compact/expanded sidebar widths derived from the icon size.
+// Compact/expanded sidebar widths derived from the icon size. Rows are
+// full-width (source list), so compact just needs the icon plus breathing.
 function computeSidebarWidths() {
   const compact = Math.max(48, iconSize + 16);
-  const expanded = Math.max(210, iconSize + 170);
+  const expanded = Math.max(220, iconSize + 180);
   return { compact, expanded };
 }
 
@@ -329,7 +330,7 @@ async function setSidebarExpanded(expanded) {
     await invoke("set_sidebar_expanded", { expanded }); // persist the pinned state
     await syncSidebarWidth(); // apply the pixel width + reflow native webviews
   } catch (err) {
-    showToast("Could not resize sidebar: " + formatInvokeError(err));
+    showToast("Impossible de redimensionner la barre lat\u00e9rale : " + formatInvokeError(err));
     console.error("Sidebar resize error:", err);
   }
 }
@@ -405,7 +406,7 @@ async function switchService(id) {
     if (serviceStates[id] !== "loaded") {
       setServiceState(id, "idle");
     }
-    showToast("Could not switch service: " + formatInvokeError(err));
+    showToast("Impossible d\u2019ouvrir le service : " + formatInvokeError(err));
     console.error("Switch error:", err);
     hideLoadingOverlay();
   }
@@ -420,7 +421,7 @@ async function openSettings() {
     settingsOpen = true;
     updateActiveState();
   } catch (err) {
-    showToast("Could not open settings: " + formatInvokeError(err));
+    showToast("Impossible d\u2019ouvrir les r\u00e9glages : " + formatInvokeError(err));
     console.error("Settings error:", err);
   }
 }
@@ -478,7 +479,7 @@ window.__reloadSidebar = async function() {
     const badges = await invoke("get_badge_counts");
     window.__updateBadges(badges);
   } catch (err) {
-    showToast("Could not reload sidebar: " + formatInvokeError(err));
+    showToast("Impossible de recharger la barre lat\u00e9rale : " + formatInvokeError(err));
     console.error("Reload sidebar error:", err);
   }
 };

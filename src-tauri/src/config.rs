@@ -25,10 +25,17 @@ pub struct Service {
 pub struct Preferences {
     #[serde(default = "default_icon_size")]
     pub icon_size: u32,
+    /// Legacy field kept for file compatibility; the V3 Snow theme no longer
+    /// reads it (surfaces come from the design-system tokens).
     #[serde(default = "default_sidebar_color")]
     pub sidebar_color: String,
+    /// V3 Snow accent preset name ("blue", "emerald", "violet", "gold",
+    /// "raspberry", "lagoon") — never a free-form color.
     #[serde(default = "default_accent_color")]
     pub accent_color: String,
+    /// "dark" (default), "light", or "auto" (follows the system scheme).
+    #[serde(default = "default_theme")]
+    pub theme: String,
     #[serde(default = "default_notifications_enabled")]
     pub notifications_enabled: bool,
     /// Whether the sidebar is pinned expanded (labels + group names visible).
@@ -40,11 +47,17 @@ fn default_icon_size() -> u32 {
     40
 }
 fn default_sidebar_color() -> String {
-    "#16213e".to_string()
+    "#1a1918".to_string()
 }
 fn default_accent_color() -> String {
-    "#e94560".to_string()
+    "blue".to_string()
 }
+fn default_theme() -> String {
+    "dark".to_string()
+}
+
+const ACCENT_PRESETS: [&str; 6] = ["blue", "emerald", "violet", "gold", "raspberry", "lagoon"];
+const THEMES: [&str; 3] = ["auto", "dark", "light"];
 fn default_notifications_enabled() -> bool {
     true
 }
@@ -58,6 +71,7 @@ impl Default for Preferences {
             icon_size: default_icon_size(),
             sidebar_color: default_sidebar_color(),
             accent_color: default_accent_color(),
+            theme: default_theme(),
             notifications_enabled: default_notifications_enabled(),
             sidebar_expanded: default_sidebar_expanded(),
         }
@@ -153,7 +167,16 @@ pub struct LoadServicesResult {
 pub fn load_preferences(app_data_dir: &Path) -> Preferences {
     let path = app_data_dir.join("preferences.json");
     let content = fs::read_to_string(&path).unwrap_or_else(|_| "{}".to_string());
-    serde_json::from_str(&content).unwrap_or_default()
+    let mut prefs: Preferences = serde_json::from_str(&content).unwrap_or_default();
+    // Migration : les anciens accents étaient des couleurs hexadécimales
+    // libres ; tout ce qui n'est pas un preset V3 Snow retombe sur "blue".
+    if !ACCENT_PRESETS.contains(&prefs.accent_color.as_str()) {
+        prefs.accent_color = default_accent_color();
+    }
+    if !THEMES.contains(&prefs.theme.as_str()) {
+        prefs.theme = default_theme();
+    }
+    prefs
 }
 
 pub fn save_preferences(app_data_dir: &Path, prefs: &Preferences) -> Result<(), ConfigError> {
@@ -184,7 +207,7 @@ fn default_services() -> Vec<Service> {
             id: "default-whatsapp".to_string(),
             name: "WhatsApp Web".to_string(),
             url: "https://web.whatsapp.com".to_string(),
-            icon: "💬".to_string(),
+            icon: "lucide:MessageCircle".to_string(),
             user_agent: None,
             zoom: None,
             group: Some("Personnel".to_string()),
@@ -193,7 +216,7 @@ fn default_services() -> Vec<Service> {
             id: "default-gmail".to_string(),
             name: "Gmail".to_string(),
             url: "https://mail.google.com".to_string(),
-            icon: "📧".to_string(),
+            icon: "lucide:Mail".to_string(),
             user_agent: None,
             zoom: None,
             group: Some("Personnel".to_string()),
@@ -202,7 +225,7 @@ fn default_services() -> Vec<Service> {
             id: "default-discord".to_string(),
             name: "Discord".to_string(),
             url: "https://discord.com/app".to_string(),
-            icon: "🎮".to_string(),
+            icon: "lucide:Gamepad2".to_string(),
             user_agent: None,
             zoom: None,
             group: Some("Personnel".to_string()),
@@ -211,7 +234,7 @@ fn default_services() -> Vec<Service> {
             id: "default-slack".to_string(),
             name: "Slack".to_string(),
             url: "https://app.slack.com".to_string(),
-            icon: "💼".to_string(),
+            icon: "lucide:Hash".to_string(),
             user_agent: None,
             zoom: None,
             group: Some("Travail".to_string()),
@@ -467,8 +490,8 @@ mod tests {
         fs::write(&prefs_path, "").expect("empty preferences.json should be written");
         let empty = load_preferences(&app_data_dir);
         assert_eq!(empty.icon_size, 40);
-        assert_eq!(empty.sidebar_color, "#16213e");
-        assert_eq!(empty.accent_color, "#e94560");
+        assert_eq!(empty.accent_color, "blue");
+        assert_eq!(empty.theme, "dark");
         assert!(empty.notifications_enabled);
 
         // Partial file: only icon_size provided, rest should use defaults.
@@ -476,25 +499,35 @@ mod tests {
             .expect("partial preferences.json should be written");
         let partial = load_preferences(&app_data_dir);
         assert_eq!(partial.icon_size, 72);
-        assert_eq!(partial.sidebar_color, "#16213e");
-        assert_eq!(partial.accent_color, "#e94560");
+        assert_eq!(partial.accent_color, "blue");
+        assert_eq!(partial.theme, "dark");
         assert!(partial.notifications_enabled);
 
+        // Legacy free-form accent colors and unknown themes fall back to the
+        // V3 Snow defaults (calibrated presets only).
+        let json = serde_json::to_string(&serde_json::json!({
+            "accent_color": "#e94560",
+            "theme": "sepia"
+        }))
+        .expect("preferences JSON should serialize");
+        fs::write(&prefs_path, json).expect("legacy preferences.json should be written");
+        let legacy = load_preferences(&app_data_dir);
+        assert_eq!(legacy.accent_color, "blue");
+        assert_eq!(legacy.theme, "dark");
+
         // Full file: all values should be loaded.
-        let sidebar_color = "#000000";
-        let accent_color = "#ffffff";
         let json = serde_json::to_string(&serde_json::json!({
             "icon_size": 24,
-            "sidebar_color": sidebar_color,
-            "accent_color": accent_color,
+            "accent_color": "raspberry",
+            "theme": "light",
             "notifications_enabled": false
         }))
         .expect("preferences JSON should serialize");
         fs::write(&prefs_path, json).expect("full preferences.json should be written");
         let full = load_preferences(&app_data_dir);
         assert_eq!(full.icon_size, 24);
-        assert_eq!(full.sidebar_color, "#000000");
-        assert_eq!(full.accent_color, "#ffffff");
+        assert_eq!(full.accent_color, "raspberry");
+        assert_eq!(full.theme, "light");
         assert!(!full.notifications_enabled);
     }
 }

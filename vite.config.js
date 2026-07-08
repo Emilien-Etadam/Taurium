@@ -9,6 +9,7 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, "src/index.html"),
         settings: resolve(__dirname, "src/settings.html"),
+        design: resolve(__dirname, "src/design.html"),
       },
     },
   },

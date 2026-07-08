@@ -3,127 +3,127 @@
     "id": "telegram",
     "name": "Telegram",
     "url": "https://web.telegram.org",
-    "icon": "✈️"
+    "icon": "lucide:Send"
   },
   {
     "id": "microsoft-teams",
     "name": "Microsoft Teams",
     "url": "https://teams.microsoft.com",
-    "icon": "👥"
+    "icon": "lucide:Users"
   },
   {
     "id": "outlook",
     "name": "Outlook",
     "url": "https://outlook.live.com",
-    "icon": "📬"
+    "icon": "lucide:Mail"
   },
   {
     "id": "messenger",
     "name": "Messenger",
     "url": "https://www.messenger.com",
-    "icon": "💬"
+    "icon": "lucide:MessageCircle"
   },
   {
     "id": "twitter",
     "name": "X (Twitter)",
     "url": "https://x.com",
-    "icon": "🐦"
+    "icon": "lucide:AtSign"
   },
   {
     "id": "linkedin",
     "name": "LinkedIn",
     "url": "https://www.linkedin.com",
-    "icon": "💼"
+    "icon": "lucide:Briefcase"
   },
   {
     "id": "github",
     "name": "GitHub",
     "url": "https://github.com",
-    "icon": "🐙"
+    "icon": "lucide:GitBranch"
   },
   {
     "id": "notion",
     "name": "Notion",
     "url": "https://www.notion.so",
-    "icon": "📝"
+    "icon": "lucide:NotebookText"
   },
   {
     "id": "google-calendar",
     "name": "Google Calendar",
     "url": "https://calendar.google.com",
-    "icon": "📅"
+    "icon": "lucide:Calendar"
   },
   {
     "id": "google-drive",
     "name": "Google Drive",
     "url": "https://drive.google.com",
-    "icon": "📁"
+    "icon": "lucide:HardDrive"
   },
   {
     "id": "trello",
     "name": "Trello",
     "url": "https://trello.com",
-    "icon": "📋"
+    "icon": "lucide:SquareKanban"
   },
   {
     "id": "spotify",
     "name": "Spotify",
     "url": "https://open.spotify.com",
-    "icon": "🎵"
+    "icon": "lucide:Music"
   },
   {
     "id": "reddit",
     "name": "Reddit",
     "url": "https://www.reddit.com",
-    "icon": "🔴"
+    "icon": "lucide:MessagesSquare"
   },
   {
     "id": "mastodon",
     "name": "Mastodon",
     "url": "https://mastodon.social",
-    "icon": "🐘"
+    "icon": "lucide:PawPrint"
   },
   {
     "id": "element",
     "name": "Element",
     "url": "https://app.element.io",
-    "icon": "🔷"
+    "icon": "lucide:Hexagon"
   },
   {
     "id": "signal",
     "name": "Signal",
     "url": "https://signal.org",
-    "icon": "🔒",
+    "icon": "lucide:MessageSquareLock",
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   },
   {
     "id": "zulip",
     "name": "Zulip",
     "url": "https://zulip.com",
-    "icon": "🗨️"
+    "icon": "lucide:MessageSquareText"
   },
   {
     "id": "docmost",
     "name": "Docmost",
     "url": "https://app.docmost.com",
-    "icon": "📚"
+    "icon": "lucide:BookOpen"
   },
   {
     "id": "google-messages",
     "name": "Google Messages",
     "url": "https://messages.google.com/web",
-    "icon": "📱"
+    "icon": "lucide:Smartphone"
   },
   {
     "id": "home-assistant",
     "name": "Home Assistant",
     "url": "https://my.home-assistant.io",
-    "icon": "🏠"
+    "icon": "lucide:House"
   },
   {
     "id": "jotty",
     "name": "Jotty",
     "url": "https://jotty.page",
-    "icon": "🗒️"
+    "icon": "lucide:NotebookPen"
   }
 ]

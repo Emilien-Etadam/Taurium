@@ -1,22 +1,15 @@
+/* ── Taurium sidebar — V3 Snow ─────────────────────────────────────────
+   Source list dense sur fond bg. Le service actif est une sélection
+   pleine largeur en dégradé accent (recette « source list »). Tout
+   l'interactif dérive de var(--accent) via les tokens de snow.css. */
+
 :root {
   --icon-size: 40px;
-  --sidebar-width: 48px;
-  --sidebar-expanded: 210px;
-  --sidebar-color: #16213e;
-  --accent-color: #e94560;
-  --text: rgba(255, 255, 255, 0.92);
-  --text-dim: rgba(255, 255, 255, 0.5);
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  --sidebar-width: 56px;
+  --sidebar-expanded: 220px;
 }
 
 body {
-  background: #1a1a2e;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
   height: 100vh;
 }
@@ -27,23 +20,24 @@ body {
   left: 0;
   width: var(--sidebar-width);
   height: 100vh;
-  background: var(--sidebar-color);
+  background: var(--bg);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding-top: 6px;
+  padding: 6px 0 0;
   z-index: 100;
   overflow: hidden;
 }
 
-/* Expanded (pinned) state. The native webview snaps to the same width from
-   Rust, so we snap here too (no width animation) to stay in sync; only the
-   labels/group names fade in. */
+/* État épinglé. La webview native s'aligne sur la même largeur côté Rust,
+   donc on change la largeur d'un coup (pas d'animation) ; seuls les
+   libellés apparaissent en fondu. */
 #sidebar.expanded {
   width: var(--sidebar-expanded);
 }
 #sidebar.expanded .label {
   opacity: 1;
-  max-width: 140px;
+  max-width: 150px;
 }
 #sidebar.expanded .group-line {
   opacity: 0;
@@ -52,93 +46,128 @@ body {
   opacity: 1;
 }
 
-/* Expand / collapse toggle */
-.sidebar-toggle {
+/* ── Rangées (source list, pleine largeur) ───────────────────────────── */
+.sidebar-toggle,
+.service-icon,
+.settings-icon {
   display: flex;
   align-items: center;
-  height: 30px;
-  margin: 0 4px 2px;
-  border-radius: 8px;
+  justify-content: center;
+  width: 100%;
+  height: calc(var(--icon-size) + 8px);
+  padding: 0;
   cursor: pointer;
   user-select: none;
+  position: relative;
   flex-shrink: 0;
+  color: var(--text);
+  transition: background 120ms, color 120ms;
 }
-.sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
+#sidebar.expanded .sidebar-toggle,
+#sidebar.expanded .service-icon,
+#sidebar.expanded .settings-icon {
+  justify-content: flex-start;
+  padding: 0 8px;
 }
-.sidebar-toggle:focus-visible {
-  outline: 2px solid var(--accent-color);
+
+.sidebar-toggle:hover,
+.service-icon:hover:not(.active),
+.settings-icon:hover:not(.active) {
+  background: var(--hover);
+}
+
+.sidebar-toggle:focus-visible,
+.service-icon:focus-visible,
+.settings-icon:focus-visible {
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
+
+/* Sélection : dégradé accent pleine largeur, texte clair « gravé ». */
+.service-icon.active,
+.settings-icon.active {
+  color: var(--action-text);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.2);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 90%, #fff),
+    color-mix(in srgb, var(--accent) 92%, #000)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ── Bascule replier/déployer ────────────────────────────────────────── */
+.sidebar-toggle {
+  height: 28px;
+  margin-bottom: 2px;
+  color: var(--muted);
+}
+.sidebar-toggle:hover {
+  color: var(--text);
+}
 .sidebar-toggle .glyph-wrap {
-  height: 30px;
+  height: 28px;
+  min-height: 28px;
 }
 .toggle-chevron {
-  font-size: 15px;
-  color: var(--text-dim);
-  transition: transform 0.18s ease;
+  width: 15px;
+  height: 15px;
+  display: block;
+  transition: transform 120ms;
 }
 #sidebar.expanded .toggle-chevron {
   transform: rotate(180deg);
 }
 
-/* Quick switcher: only meaningful when the sidebar is expanded */
+/* ── Recherche rapide (visible déployée, Ctrl+K) ─────────────────────── */
 .sidebar-search {
   display: none;
-  padding: 2px 6px 6px;
+  padding: 4px 8px 8px;
   flex-shrink: 0;
 }
 #sidebar.expanded .sidebar-search {
   display: block;
 }
 .sidebar-search input {
+  display: block;
   width: 100%;
-  height: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.2);
-  color: var(--text);
-  font-size: 12px;
+  height: 26px;
   padding: 0 8px;
-  outline: none;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--control) 96%, #000);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
+  transition: border-color 120ms, box-shadow 120ms;
 }
 .sidebar-search input::placeholder {
-  color: var(--text-dim);
+  color: var(--muted);
 }
 .sidebar-search input:focus {
-  border-color: var(--accent-color);
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16),
+    0 0 0 2px var(--focus-ring);
 }
-/* Empty search result hint */
 .no-match {
-  font-size: 11px;
-  color: var(--text-dim);
+  font-size: 12px;
+  color: var(--muted);
   text-align: center;
-  padding: 12px 6px;
+  padding: 12px 8px;
 }
 
-/* The case (chassis) the keys sit in: a matte dark charcoal shell with a
-   soft top rim of light and its own drop shadow, like the reference body. */
+/* ── Liste des services ──────────────────────────────────────────────── */
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  /* The case hugs its keys instead of stretching to fill the column; it can
-     still shrink (and scroll) when there are more keys than fit. */
-  flex: 0 1 auto;
+  gap: 1px;
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  margin: 6px 5px;
-  padding: 10px 7px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #303036, #212125);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 8px 18px rgba(0, 0, 0, 0.5);
-}
-/* No services (and no filter hint): no empty shell. */
-.service-list:empty {
-  display: none;
+  padding: 2px 0;
 }
 .service-list::-webkit-scrollbar {
   width: 0;
@@ -147,167 +176,13 @@ body {
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  /* Pinned to the bottom now that the key case no longer fills the column. */
-  margin: auto 5px 6px;
-  padding: 10px 7px;
-  border-radius: 22px;
-  background: linear-gradient(180deg, #303036, #212125);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.45),
-    0 8px 18px rgba(0, 0, 0, 0.5);
-}
-
-/* ── 3D toolbar keys (cerpow "3D Figma Toolbar") ───────────────────────
-   Matte charcoal squircle caps sitting in the wells of a dark case. Neutral
-   with light line-style legends at rest. The selected service becomes a
-   saturated, backlit accent cap with light bleeding onto the case below it;
-   a notification lights a glowing accent LED at the key's base. Cap tones
-   are a fixed neutral charcoal (the reference identity); only the lit states
-   use the accent colour. */
-/* Rows are chromeless hit areas — the SQUARE keycap is the .glyph-wrap.
-   Full-width bars don't read as keys; a keycap is square. */
-.service-icon,
-.settings-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
+  gap: 1px;
   flex-shrink: 0;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
 }
 
-/* Expanded case: the cap stays square, the label sits beside it on the case. */
-#sidebar.expanded .service-icon,
-#sidebar.expanded .settings-icon {
-  justify-content: flex-start;
-  padding-left: 2px;
-}
-
-.service-icon:focus-visible,
-.settings-icon:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 3px;
-}
-
-/* The keycap: square charcoal cap. Its sculpted top plateau (::before) — a
-   smaller raised face inset from the base, deeper at the front — is what
-   makes it read as a key. */
-.service-icon .glyph-wrap,
-.settings-icon .glyph-wrap {
-  --k-side-top: #3d3d45;
-  --k-side-bottom: #232329;
-  --k-plateau-top: #47474f;
-  --k-plateau-bottom: #313138;
-
-  border-radius: 24%;
-  background: linear-gradient(180deg, var(--k-side-top), var(--k-side-bottom));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.13),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
-    0 2px 3px rgba(0, 0, 0, 0.55),
-    0 6px 12px rgba(0, 0, 0, 0.45);
-  transition: transform 0.13s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.13s ease;
-}
-/* Sculpted top plateau: inset from the base, more at the bottom (front wall
-   visible), with its own soft top light and dished lower shade. */
-.service-icon .glyph-wrap::before,
-.settings-icon .glyph-wrap::before {
-  content: "";
-  position: absolute;
-  inset: 8% 9% 16% 9%;
-  border-radius: 22%;
-  background:
-    radial-gradient(130% 100% at 50% 0%, rgba(255, 255, 255, 0.09), transparent 58%),
-    linear-gradient(180deg, var(--k-plateau-top), var(--k-plateau-bottom));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -3px 5px rgba(0, 0, 0, 0.32);
-  pointer-events: none;
-}
-
-/* Hover: the cap rises out of its well. */
-.service-icon:hover .glyph-wrap,
-.settings-icon:hover .glyph-wrap {
-  transform: translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.17),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
-    0 8px 16px rgba(0, 0, 0, 0.55),
-    0 3px 5px rgba(0, 0, 0, 0.4);
-}
-
-/* Notification: a glowing accent LED at the base of the cap (the
-   reference's status LED), bleeding onto the case. */
-.service-icon:has(.badge) .glyph-wrap::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  width: 6px;
-  height: 6px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent-color) 80%, #ffffff 20%);
-  box-shadow: 0 0 8px 2px color-mix(in srgb, var(--accent-color) 80%, transparent);
-  animation: led-pulse 2s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes led-pulse {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .service-icon:has(.badge) .glyph-wrap::after { animation: none; opacity: 0.9; }
-}
-
-/* Selected service: the saturated, backlit accent keycap — lit walls, lit
-   plateau, glow spilling around the cap and bleeding below it. */
-.service-icon.active .glyph-wrap,
-.settings-icon.active .glyph-wrap {
-  --k-side-top: color-mix(in srgb, var(--accent-color) 72%, #ffffff 28%);
-  --k-side-bottom: color-mix(in srgb, var(--accent-color) 75%, #000000 25%);
-  --k-plateau-top: color-mix(in srgb, var(--accent-color) 60%, #ffffff 40%);
-  --k-plateau-bottom: color-mix(in srgb, var(--accent-color) 92%, #000000 8%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -2px 3px color-mix(in srgb, var(--accent-color) 50%, #000000 50%),
-    0 2px 3px rgba(0, 0, 0, 0.5),
-    0 6px 12px rgba(0, 0, 0, 0.4),
-    0 0 18px 1px color-mix(in srgb, var(--accent-color) 60%, transparent);
-}
-/* Light bleeding from the lit cap onto the case below (overrides the LED
-   for an active+notified key: the cap itself is already lit). */
-.service-icon.active .glyph-wrap::after,
-.settings-icon.active .glyph-wrap::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -6px;
-  width: 55%;
-  height: 6px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent-color) 85%, #ffffff 15%);
-  filter: blur(3px);
-  opacity: 0.9;
-  animation: none;
-  pointer-events: none;
-}
-
-/* Press: the cap travels down into its well. Last, so a click always reads
-   as a press. */
-.service-icon:active .glyph-wrap,
-.settings-icon:active .glyph-wrap {
-  transform: translateY(2px);
-  box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.55),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
-    0 1px 1px rgba(0, 0, 0, 0.45);
-}
-
-/* Glyph + its overlays stay together so dot/badge are always anchored */
+/* Conteneur d'icône : zone carrée, les pastilles s'y ancrent. */
 .glyph-wrap {
   position: relative;
   width: var(--icon-size);
@@ -318,71 +193,66 @@ body {
   justify-content: center;
   flex-shrink: 0;
 }
-/* Legend paints above the sculpted plateau (an absolutely-positioned
-   pseudo otherwise stacks over static content). */
-.glyph,
-.icon-img {
-  position: relative;
-  z-index: 1;
-}
 
 .glyph {
   font-size: calc(var(--icon-size) * 0.5);
   line-height: 1;
 }
 
-/* Image icons inside a service-icon */
 .icon-img {
   width: calc(var(--icon-size) * 0.6);
   height: calc(var(--icon-size) * 0.6);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   object-fit: contain;
   pointer-events: none;
 }
 
-/* Key legends: light monochrome line-look on the charcoal cap. On the active
-   accent cap the legend lights up bright white with a soft halo. */
-.service-icon .glyph,
-.service-icon .icon-img {
-  filter: grayscale(1) brightness(1.5);
-  opacity: 0.7;
-  transition: filter 0.18s ease, opacity 0.18s ease;
+/* Icônes Lucide de service : trait fin, couleur courante (muted au repos,
+   texte au survol, blanc sur la sélection accent). */
+.service-icon .icon-lucide {
+  width: calc(var(--icon-size) * 0.55);
+  height: calc(var(--icon-size) * 0.55);
+  display: block;
+  color: var(--muted);
+  transition: color 120ms;
 }
-.service-icon:hover .glyph,
-.service-icon:hover .icon-img {
-  opacity: 0.95;
+.service-icon:hover .icon-lucide {
+  color: var(--text);
 }
-.service-icon.active .glyph {
-  filter: grayscale(1) brightness(2.8);
-  opacity: 1;
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.45);
-}
-.service-icon.active .icon-img {
-  filter: brightness(1.5);
-  opacity: 1;
+.service-icon.active .icon-lucide {
+  color: var(--action-text);
 }
 
-/* Legend text on the cap. Hidden while the sidebar is compact. */
+/* Libellés (sidebar déployée) */
 .label {
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
-  margin-left: 10px;
-  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 4px;
   opacity: 0;
   max-width: 0;
-  overflow: hidden;
-  transition: opacity 0.15s;
+  transition: opacity 120ms;
+}
+.sidebar-toggle .label,
+.settings-icon:not(.active) .label {
+  color: var(--muted);
+}
+.sidebar-toggle:hover .label,
+.settings-icon:hover .label {
+  color: var(--text);
+}
+.settings-icon.active .label {
+  color: var(--action-text);
 }
 
-/* Status dot: bottom-right of the glyph.
-   Only the transient "loading" spinner is shown — the old permanent green
-   "loaded" dot was pure noise (every opened service just stayed green), so
-   the loaded/idle states render nothing. */
+/* ── États & notifications ───────────────────────────────────────────── */
+/* Seul le chargement transitoire est affiché ; idle/loaded ne rendent rien. */
 .status-dot {
   position: absolute;
-  right: 3px;
-  bottom: 3px;
+  right: 0;
+  bottom: 0;
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -394,109 +264,128 @@ body {
 }
 .status-dot.loading {
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: var(--accent-color);
-  animation: spin 0.7s linear infinite;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: snow-spin 0.7s linear infinite;
 }
 
-/* Notification badge: top-right of the glyph. A plain solid accent pill —
-   no glow, no pulse, no bounce. Against the muted grayscale icons it stands
-   out on its own. */
+/* Compteur de notifications : badge accent, chiffres 700. */
 .badge {
   position: absolute;
-  top: -4px;
+  top: -2px;
   right: -4px;
-  background: var(--accent-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 5px;
   line-height: 1;
-  border: 2px solid var(--sidebar-color);
-  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.service-icon.active .badge {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: none;
+  text-shadow: none;
 }
 
-/* Group header: fixed height so icons never shift.
-   Compact = thin line; expanded (phase 2) = label text. */
+/* ── En-têtes de groupe ──────────────────────────────────────────────── */
+/* Hauteur fixe : les rangées ne bougent pas. Replié = filet ; déployé =
+   libellé 11px majuscules. */
 .group-header {
   position: relative;
   height: 22px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 6px;
+  padding: 0 12px;
+  margin-top: 4px;
 }
 .group-line {
   flex: 1;
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  transition: opacity 0.15s;
+  background: var(--border);
+  transition: opacity 120ms;
 }
 .group-text {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  font-size: 10px;
+  left: 12px;
+  right: 10px;
+  font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-dim);
+  letter-spacing: 0.05em;
+  color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   opacity: 0;
+  transition: opacity 120ms;
 }
 
-.settings-icon .glyph {
-  color: var(--text-dim);
+/* ── Réglages ────────────────────────────────────────────────────────── */
+.settings-icon {
+  color: var(--muted);
+}
+.settings-icon:hover {
+  color: var(--text);
+}
+.settings-icon .gear-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
-/* "Update available" marker on the settings gear */
+/* Marqueur « mise à jour disponible » sur l'engrenage */
 .update-dot {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 9px;
-  height: 9px;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #2ecc71;
-  border: 2px solid var(--sidebar-color);
-  box-sizing: content-box;
+  background: var(--green);
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
-/* Empty state */
+/* ── État vide ───────────────────────────────────────────────────────── */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
-  gap: 4px;
+  gap: 6px;
+  padding: 0 8px;
+  text-align: center;
 }
 .empty-state.hidden {
   display: none;
 }
 .empty-icon {
-  font-size: 20px;
-  color: rgba(255, 255, 255, 0.2);
+  display: flex;
+  color: var(--muted);
 }
 .empty-text {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.2);
-  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
 }
 
-/* Loading overlay */
+/* ── Voile de chargement ─────────────────────────────────────────────── */
 .loading-overlay {
   position: fixed;
   top: 0;
   left: var(--sidebar-width);
   right: 0;
   bottom: 0;
-  background: rgba(26, 26, 46, 0.7);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -505,17 +394,10 @@ body {
 .loading-overlay.hidden {
   display: none;
 }
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--accent-color);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.loading-overlay .spinner {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+  border-color: rgba(255, 255, 255, 0.25);
+  border-top-color: var(--accent);
 }
