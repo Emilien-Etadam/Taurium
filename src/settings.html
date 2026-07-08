@@ -62,6 +62,15 @@
             </div>
           </div>
           <div class="field">
+            <label for="input-notify">Notifications</label>
+            <select id="input-notify" class="input">
+              <option value="all">Tout — notification bureau + badge</option>
+              <option value="badge">Badge seul — non-lu silencieux</option>
+              <option value="off">Muet — aucune alerte</option>
+            </select>
+            <span class="hint">Niveau d'alerte de ce service (badge sidebar + icône de la barre des tâches).</span>
+          </div>
+          <div class="field">
             <label>Icône</label>
             <div class="icon-input-row">
               <button type="button" id="icon-picker-btn" class="btn btn--secondary">Choisir une icône</button>

@@ -19,6 +19,27 @@ pub struct Service {
     /// Absent/`None`/empty means the service is ungrouped.
     #[serde(default)]
     pub group: Option<String>,
+    /// Per-service notification level: `"all"` (desktop notification + badge),
+    /// `"badge"` (silent unread badge only) or `"off"` (muted, excluded from
+    /// badges and the taskbar count). Absent/unknown is treated as `"all"`.
+    #[serde(default)]
+    pub notify: Option<String>,
+}
+
+/// Notification levels (see [`Service::notify`]).
+pub const NOTIFY_ALL: &str = "all";
+pub const NOTIFY_BADGE: &str = "badge";
+pub const NOTIFY_OFF: &str = "off";
+
+impl Service {
+    /// Normalized notification level; absent/unknown values fall back to `"all"`.
+    pub fn notify_level(&self) -> &'static str {
+        match self.notify.as_deref() {
+            Some(NOTIFY_BADGE) => NOTIFY_BADGE,
+            Some(NOTIFY_OFF) => NOTIFY_OFF,
+            _ => NOTIFY_ALL,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +232,7 @@ fn default_services() -> Vec<Service> {
             user_agent: None,
             zoom: None,
             group: Some("Personnel".to_string()),
+            notify: None,
         },
         Service {
             id: "default-gmail".to_string(),
@@ -220,6 +242,7 @@ fn default_services() -> Vec<Service> {
             user_agent: None,
             zoom: None,
             group: Some("Personnel".to_string()),
+            notify: None,
         },
         Service {
             id: "default-discord".to_string(),
@@ -229,6 +252,7 @@ fn default_services() -> Vec<Service> {
             user_agent: None,
             zoom: None,
             group: Some("Personnel".to_string()),
+            notify: None,
         },
         Service {
             id: "default-slack".to_string(),
@@ -238,6 +262,7 @@ fn default_services() -> Vec<Service> {
             user_agent: None,
             zoom: None,
             group: Some("Travail".to_string()),
+            notify: None,
         },
     ]
 }
@@ -268,6 +293,12 @@ fn normalize_service(mut service: Service) -> Service {
         if g.trim().is_empty() {
             service.group = None;
         }
+    }
+    // Drop unknown/empty/default notify levels so the file stays clean and
+    // `notify_level()` doesn't have to guess (absent == "all").
+    match service.notify.as_deref() {
+        Some(NOTIFY_BADGE) | Some(NOTIFY_OFF) => {}
+        _ => service.notify = None,
     }
     service
 }
@@ -402,6 +433,62 @@ mod tests {
         assert_eq!(extract_badge_count("(2025) Rapport"), 0);
         assert_eq!(extract_badge_count("(1500)"), 0);
         assert_eq!(extract_badge_count("(99)"), 99);
+    }
+
+    fn service_with_notify(notify: Option<&str>) -> Service {
+        Service {
+            id: "svc".to_string(),
+            name: "Svc".to_string(),
+            url: "https://example.com".to_string(),
+            icon: "x".to_string(),
+            user_agent: None,
+            zoom: None,
+            group: None,
+            notify: notify.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn test_notify_level_defaults_to_all() {
+        assert_eq!(service_with_notify(None).notify_level(), NOTIFY_ALL);
+        assert_eq!(service_with_notify(Some("all")).notify_level(), NOTIFY_ALL);
+        assert_eq!(
+            service_with_notify(Some("badge")).notify_level(),
+            NOTIFY_BADGE
+        );
+        assert_eq!(service_with_notify(Some("off")).notify_level(), NOTIFY_OFF);
+        // Unknown/garbage falls back to "all".
+        assert_eq!(
+            service_with_notify(Some("bogus")).notify_level(),
+            NOTIFY_ALL
+        );
+        assert_eq!(service_with_notify(Some("")).notify_level(), NOTIFY_ALL);
+    }
+
+    #[test]
+    fn test_normalize_service_notify() {
+        // "all"/unknown/empty are dropped to None; "badge"/"off" are kept.
+        assert_eq!(
+            normalize_service(service_with_notify(Some("all"))).notify,
+            None
+        );
+        assert_eq!(
+            normalize_service(service_with_notify(Some("bogus"))).notify,
+            None
+        );
+        assert_eq!(
+            normalize_service(service_with_notify(Some(""))).notify,
+            None
+        );
+        assert_eq!(normalize_service(service_with_notify(None)).notify, None);
+        assert_eq!(
+            normalize_service(service_with_notify(Some("badge"))).notify,
+            Some("badge".to_string())
+        );
+        assert_eq!(
+            normalize_service(service_with_notify(Some("off"))).notify,
+            Some("off".to_string())
+        );
     }
 
     #[test]

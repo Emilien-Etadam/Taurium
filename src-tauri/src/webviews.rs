@@ -7,7 +7,9 @@ use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::config::{extract_badge_count, load_preferences, Service, ServicesLoadInfo};
+use crate::config::{
+    extract_badge_count, load_preferences, Service, ServicesLoadInfo, NOTIFY_ALL, NOTIFY_OFF,
+};
 use crate::error::TauriumError;
 
 /// Minimum sidebar width / fallback (icons only). The actual width is driven by
@@ -66,6 +68,103 @@ pub(crate) fn notification_body_for_badge_change(
         }
     };
     Some(body)
+}
+
+/// Reflect the total unread count on the app's taskbar icon.
+///
+/// Windows has no numeric taskbar badge, so an overlay dot is shown while there
+/// is any unread; other desktops use the native badge count (a number on docks
+/// that support it, e.g. Unity). Cleared when the total drops to zero.
+pub fn update_taskbar_indicator(app: &AppHandle, total: u32) {
+    let Some(window) = app.get_window("main") else {
+        return;
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        let overlay = if total > 0 {
+            Some(unread_overlay_icon())
+        } else {
+            None
+        };
+        if let Err(e) = window.set_overlay_icon(overlay) {
+            eprintln!("[Taurium] set_overlay_icon failed: {e}");
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let count = if total > 0 { Some(total as i64) } else { None };
+        if let Err(e) = window.set_badge_count(count) {
+            eprintln!("[Taurium] set_badge_count failed: {e}");
+        }
+    }
+}
+
+/// Briefly flash / highlight the taskbar entry to signal a new notification.
+/// No-op on the focused window on most platforms.
+fn flash_taskbar(app: &AppHandle) {
+    if let Some(window) = app.get_window("main") {
+        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
+
+/// A small red disc used as the Windows taskbar overlay when there is unread.
+/// Built once (32×32 RGBA, anti-aliased edge) and reused.
+#[cfg(target_os = "windows")]
+fn unread_overlay_icon() -> tauri::image::Image<'static> {
+    use std::sync::OnceLock;
+    static PIXELS: OnceLock<Vec<u8>> = OnceLock::new();
+    const SIZE: u32 = 32;
+    let rgba = PIXELS.get_or_init(|| {
+        let mut buf = vec![0u8; (SIZE * SIZE * 4) as usize];
+        let radius = SIZE as f32 / 2.0;
+        let center = radius - 0.5;
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                let dx = x as f32 - center;
+                let dy = y as f32 - center;
+                let dist = (dx * dx + dy * dy).sqrt();
+                // Anti-aliased edge over the outermost pixel.
+                let alpha = ((radius - dist).clamp(0.0, 1.0) * 255.0) as u8;
+                let idx = ((y * SIZE + x) * 4) as usize;
+                buf[idx] = 0xE5; // R
+                buf[idx + 1] = 0x3E; // G
+                buf[idx + 2] = 0x3E; // B
+                buf[idx + 3] = alpha;
+            }
+        }
+        buf
+    });
+    tauri::image::Image::new(rgba, SIZE, SIZE)
+}
+
+/// Clear now-muted services from the badge map and return the new taskbar total.
+/// Locks are taken sequentially (never nested) to avoid deadlocks.
+fn refresh_badges_for_levels(state: &WebviewState) -> u32 {
+    let off_ids: Vec<String> = match state.services.lock() {
+        Ok(services) => services
+            .iter()
+            .filter(|s| s.notify_level() == NOTIFY_OFF)
+            .map(|s| s.id.clone())
+            .collect(),
+        Err(e) => {
+            eprintln!("[Taurium] Mutex poisoned: {}", e);
+            return 0;
+        }
+    };
+    match state.badge_counts.lock() {
+        Ok(mut badges) => {
+            for id in &off_ids {
+                badges.remove(id);
+            }
+            badges.values().copied().sum()
+        }
+        Err(e) => {
+            eprintln!("[Taurium] Mutex poisoned: {}", e);
+            0
+        }
+    }
 }
 
 /// Select navigated webview ids that exceeded the inactivity threshold (excluding the active one).
@@ -136,15 +235,36 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
 
     notify_service_loaded(app, service_id);
 
-    let count = extract_badge_count(title);
-    eprintln!(
-        "[Taurium] Title changed: '{}' → badge count: {} (service: {})",
-        title, count, service_id
-    );
     let state = app.state::<WebviewState>();
 
-    // Update badge counts (hold lock briefly, then release before eval)
-    let (prev_count, badges_json) = {
+    // Per-service notification level: "all" (notify + badge), "badge" (silent
+    // unread badge) or "off" (fully muted). Absent/unknown falls back to "all".
+    let level = match state.services.lock() {
+        Ok(services) => services
+            .iter()
+            .find(|s| s.id == service_id)
+            .map(|s| s.notify_level())
+            .unwrap_or(NOTIFY_ALL),
+        Err(e) => {
+            eprintln!("[Taurium] Mutex poisoned: {}", e);
+            return;
+        }
+    };
+
+    // A muted service keeps no badge and is excluded from the taskbar total:
+    // forcing the count to 0 removes it from the badge map below.
+    let count = if level == NOTIFY_OFF {
+        0
+    } else {
+        extract_badge_count(title)
+    };
+    eprintln!(
+        "[Taurium] Title changed: '{}' → badge count: {} (service: {}, notify: {})",
+        title, count, service_id, level
+    );
+
+    // Update badge counts and compute the taskbar total (hold lock briefly).
+    let (prev_count, badges_json, total) = {
         let mut badges = match state.badge_counts.lock() {
             Ok(guard) => guard,
             Err(e) => {
@@ -158,18 +278,18 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
         } else {
             badges.remove(service_id);
         }
+        let total: u32 = badges.values().copied().sum();
         let json = serde_json::to_string(&*badges).unwrap_or_default();
-        (prev, json)
+        (prev, json, total)
     }; // badge_counts lock released here
 
-    // Send notification if badge count increased
+    // Desktop notification: only for "all" services (and when the global switch
+    // is on). "badge" services increment the badge silently.
     let prefs = load_preferences(&state.app_data_dir);
-    if let Some(body) = notification_body_for_badge_change(
-        service_name,
-        count,
-        prev_count,
-        prefs.notifications_enabled,
-    ) {
+    let notify_allowed = prefs.notifications_enabled && level == NOTIFY_ALL;
+    if let Some(body) =
+        notification_body_for_badge_change(service_name, count, prev_count, notify_allowed)
+    {
         eprintln!(
             "[Taurium] Sending notification: {} - {}",
             service_name, body
@@ -184,6 +304,8 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
             Ok(_) => eprintln!("[Taurium] Notification sent successfully"),
             Err(e) => eprintln!("[Taurium] Notification error: {}", e),
         }
+        // Draw attention by briefly flashing the taskbar entry.
+        flash_taskbar(app);
     }
 
     // Update sidebar badges (lock already released, safe to eval)
@@ -194,6 +316,9 @@ pub fn handle_title_change(app: &AppHandle, service_id: &str, service_name: &str
         );
         sidebar.eval(&js).ok();
     }
+
+    // Reflect the total unread count on the app's taskbar icon.
+    update_taskbar_indicator(app, total);
 
     // Per-service zoom once the remote document is live (title updates after load)
     let zoom = {
@@ -729,6 +854,11 @@ pub fn apply_service_changes(
         }
     }
 
+    // Drop badges for services just switched to "off" so the sidebar reload
+    // below reflects it, then sync the taskbar unread indicator.
+    let total = refresh_badges_for_levels(state);
+    update_taskbar_indicator(app, total);
+
     // Refresh sidebar
     if let Some(sidebar) = app.get_webview("sidebar") {
         sidebar
@@ -809,6 +939,7 @@ mod tests {
             user_agent: None,
             zoom: None,
             group: None,
+            notify: None,
         }
     }
 
@@ -1075,6 +1206,7 @@ mod tests {
             user_agent: None,
             zoom: None,
             group: None,
+            notify: None,
         };
         let with_ua = Service {
             user_agent: Some("Custom".to_string()),
