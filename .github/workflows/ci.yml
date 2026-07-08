@@ -91,23 +91,12 @@ jobs:
       - name: npm ci
         run: npm ci
 
-      # On pull requests: fast compile check only (skip installer packaging).
+      # Compile check on every push and PR (no installer packaging).
+      # Signed installers are produced only by the release workflow
+      # (release.yml), which holds the updater signing key — so CI never needs
+      # TAURI_SIGNING_PRIVATE_KEY and stays fast.
       # generate_context! embeds ../dist, so Vite must build it first.
       - name: Build (compile check)
-        if: github.event_name == 'pull_request'
         run: |
           npm run build
           cargo build --manifest-path src-tauri/Cargo.toml
-
-      # On push to main: full Tauri bundle (installers).
-      - name: Build (full bundle)
-        if: github.event_name != 'pull_request'
-        run: npm run tauri build
-
-      - name: Upload build artifacts
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: tauri-bundle-${{ matrix.os }}
-          path: src-tauri/target/release/bundle/
-          if-no-files-found: warn
