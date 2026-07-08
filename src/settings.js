@@ -424,6 +424,7 @@ function showAddForm() {
   document.getElementById("input-user-agent").value = "";
   document.getElementById("input-zoom").value = "1";
   document.getElementById("input-zoom-val").textContent = "1.0×";
+  document.getElementById("input-notify").value = "all";
   document.getElementById("input-icon-file").value = "";
   refreshIconPreview();
   clearErrors();
@@ -442,6 +443,8 @@ function showEditForm(index) {
   const z = s.zoom != null && Number.isFinite(s.zoom) ? s.zoom : 1;
   document.getElementById("input-zoom").value = String(z);
   document.getElementById("input-zoom-val").textContent = Number(z).toFixed(1) + "×";
+  const notify = s.notify === "badge" || s.notify === "off" ? s.notify : "all";
+  document.getElementById("input-notify").value = notify;
 
   // Icône : image importée, Lucide, ou emoji hérité
   if (s.icon.startsWith("data:image")) {
@@ -497,6 +500,9 @@ async function saveForm() {
   const zoomRaw = Number.parseFloat(document.getElementById("input-zoom").value);
   const zoomStep = Number.isFinite(zoomRaw) ? Math.round(zoomRaw * 10) / 10 : 1;
   const zoom = zoomStep !== 1 ? zoomStep : null;
+  // Notification level: "all" is the default and stored as null to keep the file clean.
+  const notifyRaw = document.getElementById("input-notify").value;
+  const notify = notifyRaw === "badge" || notifyRaw === "off" ? notifyRaw : null;
   const emojiIcon = document.getElementById("input-icon").value.trim();
 
   let valid = true;
@@ -548,7 +554,7 @@ async function saveForm() {
   }
 
   if (editingIndex === -1) {
-    services.push({ id, name, url, icon, user_agent, zoom, group });
+    services.push({ id, name, url, icon, user_agent, zoom, group, notify });
   } else {
     services[editingIndex] = {
       ...services[editingIndex],
@@ -559,6 +565,7 @@ async function saveForm() {
       user_agent,
       zoom,
       group,
+      notify,
     };
   }
 
@@ -647,6 +654,7 @@ async function addFromCatalog(recipe) {
     icon: recipe.icon,
     user_agent: recipe.user_agent ?? null,
     zoom: null,
+    notify: null,
   };
   services.push(service);
   hideCatalog();
