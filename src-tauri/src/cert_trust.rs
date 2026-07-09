@@ -1,4 +1,4 @@
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -100,7 +100,16 @@ fn fetch_leaf_certificate(host: &str, port: u16) -> Result<(Vec<u8>, String), Ta
     let mut conn = ClientConnection::new(Arc::new(config), server_name)
         .map_err(|e| TauriumError::Certificate(e.to_string()))?;
 
-    let mut sock = TcpStream::connect((host, port)).map_err(TauriumError::Io)?;
+    // `TcpStream::connect` has no timeout of its own (it can hang well past
+    // 10s against an unreachable host, the exact case this feature targets),
+    // so resolve first and connect with an explicit deadline.
+    let addr = (host, port)
+        .to_socket_addrs()
+        .map_err(TauriumError::Io)?
+        .next()
+        .ok_or_else(|| TauriumError::Certificate(format!("Impossible de résoudre {host}")))?;
+    let mut sock =
+        TcpStream::connect_timeout(&addr, Duration::from_secs(10)).map_err(TauriumError::Io)?;
     sock.set_read_timeout(Some(Duration::from_secs(10))).ok();
     sock.set_write_timeout(Some(Duration::from_secs(10))).ok();
 
