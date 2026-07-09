@@ -44,6 +44,10 @@
             <span id="err-url" class="field-error hidden"></span>
           </div>
           <div class="field">
+            <button type="button" id="trust-cert-btn" class="btn btn--secondary btn--sm">Faire confiance au certificat…</button>
+            <span class="hint">Pour un service auto-hébergé avec certificat auto-signé (ex. NAS). Windows uniquement pour l'instant.</span>
+          </div>
+          <div class="field">
             <label for="input-group">Groupe (optionnel)</label>
             <input type="text" id="input-group" class="input" placeholder="Personnel, Travail…" autocomplete="off" list="group-suggestions" />
             <datalist id="group-suggestions"></datalist>
@@ -131,6 +135,26 @@
           <input type="search" id="icon-picker-search" class="input" placeholder="Rechercher parmi toutes les icônes Lucide…" autocomplete="off" />
           <div id="icon-picker-grid" class="icon-picker-grid" role="listbox" aria-label="Icônes Lucide"></div>
           <p id="icon-picker-empty" class="catalog-empty hidden">Aucune icône ne correspond.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Certificate trust dialog -->
+    <div id="cert-trust-dialog" class="dialog-overlay backdrop hidden">
+      <div class="card dialog confirm-box">
+        <div class="card__body">
+          <p class="confirm-msg">
+            Certificat présenté par <strong id="cert-trust-host">—</strong> :
+          </p>
+          <p id="cert-trust-fingerprint" class="cert-fingerprint">—</p>
+          <p class="hint">
+            Ne validez que si vous reconnaissez ce serveur (ex. votre NAS). Le certificat sera
+            ajouté au magasin de certificats de confiance de Windows pour votre compte utilisateur.
+          </p>
+          <div class="confirm-actions">
+            <button id="cert-trust-yes" class="btn btn--primary">Faire confiance</button>
+            <button id="cert-trust-no" class="btn btn--secondary">Annuler</button>
+          </div>
         </div>
       </div>
     </div>
