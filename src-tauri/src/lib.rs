@@ -1,3 +1,4 @@
+mod cert_trust;
 mod config;
 mod error;
 mod recipes;
@@ -149,6 +150,23 @@ fn apply_services(
 #[tauri::command]
 fn get_services_load_info(state: tauri::State<WebviewState>) -> ServicesLoadInfo {
     state.services_load_info.clone()
+}
+
+// `async`: performs a blocking TLS handshake over the network.
+#[tauri::command(async)]
+fn fetch_service_certificate(url: String) -> Result<cert_trust::CertInfo, TauriumError> {
+    cert_trust::fetch_certificate_info(&url)
+}
+
+// `async`: performs a blocking TLS handshake and (on Windows) shells out to
+// certutil.
+#[tauri::command(async)]
+fn trust_service_certificate(
+    host: String,
+    port: u16,
+    expected_fingerprint: String,
+) -> Result<(), TauriumError> {
+    cert_trust::trust_certificate(&host, port, &expected_fingerprint)
 }
 
 #[tauri::command]
@@ -474,6 +492,8 @@ pub fn run() {
             set_sidebar_width,
             apply_services,
             get_services_load_info,
+            fetch_service_certificate,
+            trust_service_certificate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

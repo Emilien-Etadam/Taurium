@@ -7,6 +7,7 @@ let iconDataUrl = ""; // stores base64 data URL for image icon
 let iconLucide = ""; // nom d’icône Lucide sélectionné (sans préfixe)
 let savePrefsFeedbackTimer = null;
 let loadedPrefs = {}; // full prefs from backend, so save preserves fields not shown here
+let pendingCertTrust = null; // { host, port, fingerprint } awaiting user confirmation
 
 import { showToast, formatInvokeError, showServicesLoadInfo } from "./toast.js";
 import { serviceIconEl, lucideEl, allLucideNames, isLucideIcon, lucideName, lucideExists, normalizeQuery } from "./icons.js";
@@ -137,6 +138,9 @@ async function init() {
   document.getElementById("confirm-yes").addEventListener("click", confirmDelete);
   document.getElementById("confirm-no").addEventListener("click", cancelDelete);
   document.getElementById("save-prefs-btn").addEventListener("click", savePreferences);
+  document.getElementById("trust-cert-btn").addEventListener("click", handleTrustCertClick);
+  document.getElementById("cert-trust-yes").addEventListener("click", confirmTrustCert);
+  document.getElementById("cert-trust-no").addEventListener("click", cancelTrustCert);
 
   // Icon size slider label
   document.getElementById("pref-icon-size").addEventListener("input", (e) => {
@@ -315,6 +319,61 @@ function confirmDelete() {
 function cancelDelete() {
   deleteIndex = -1;
   document.getElementById("confirm-dialog").classList.add("hidden");
+}
+
+// --- Certificate trust (self-signed / self-hosted services) ---
+async function handleTrustCertClick() {
+  const url = document.getElementById("input-url").value.trim();
+  if (!url) {
+    showToast("Indiquez d'abord une URL.");
+    return;
+  }
+  const invoke = getInvoke();
+  if (!invoke) return;
+
+  const btn = document.getElementById("trust-cert-btn");
+  btn.disabled = true;
+  try {
+    const info = await invoke("fetch_service_certificate", { url });
+    pendingCertTrust = info;
+    document.getElementById("cert-trust-host").textContent = `${info.host}:${info.port}`;
+    document.getElementById("cert-trust-fingerprint").textContent = info.fingerprint;
+    document.getElementById("cert-trust-dialog").classList.remove("hidden");
+  } catch (err) {
+    showToast("Impossible de récupérer le certificat : " + formatInvokeError(err), { durationMs: 10000 });
+    console.error("Fetch certificate error:", err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function hideCertTrustDialog() {
+  pendingCertTrust = null;
+  document.getElementById("cert-trust-dialog").classList.add("hidden");
+}
+
+function cancelTrustCert() {
+  hideCertTrustDialog();
+}
+
+async function confirmTrustCert() {
+  const pending = pendingCertTrust;
+  hideCertTrustDialog();
+  if (!pending) return;
+
+  const invoke = getInvoke();
+  if (!invoke) return;
+  try {
+    await invoke("trust_service_certificate", {
+      host: pending.host,
+      port: pending.port,
+      expectedFingerprint: pending.fingerprint,
+    });
+    showToast("Certificat approuvé. Réessayez le service.");
+  } catch (err) {
+    showToast("Échec de la confiance au certificat : " + formatInvokeError(err), { durationMs: 10000 });
+    console.error("Trust certificate error:", err);
+  }
 }
 
 // --- Icône : trois sources (Lucide / emoji / image), un seul aperçu ---
