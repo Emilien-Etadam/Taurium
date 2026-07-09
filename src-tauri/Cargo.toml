@@ -1,6 +1,6 @@
 [package]
 name = "taurium"
-version = "0.5.1"
+version = "0.5.2"
 description = "A minimalist Ferdium-like app with multi-webview support"
 authors = ["Emilien Etadam <emilien@etadam.com>"]
 edition = "2021"
