@@ -24,6 +24,12 @@ pub struct Service {
     /// badges and the taskbar count). Absent/unknown is treated as `"all"`.
     #[serde(default)]
     pub notify: Option<String>,
+    /// When `true`, this service is exempt from hibernation: its webview is
+    /// never unloaded to `about:blank` for inactivity, so it keeps receiving
+    /// real-time updates (and therefore badges/notifications) in the
+    /// background. Defaults to `false` (hibernates normally after 10 minutes).
+    #[serde(default)]
+    pub keep_alive: bool,
 }
 
 /// Notification levels (see [`Service::notify`]).
@@ -233,6 +239,7 @@ fn default_services() -> Vec<Service> {
             zoom: None,
             group: Some("Personnel".to_string()),
             notify: None,
+            keep_alive: false,
         },
         Service {
             id: "default-gmail".to_string(),
@@ -243,6 +250,7 @@ fn default_services() -> Vec<Service> {
             zoom: None,
             group: Some("Personnel".to_string()),
             notify: None,
+            keep_alive: false,
         },
         Service {
             id: "default-discord".to_string(),
@@ -253,6 +261,7 @@ fn default_services() -> Vec<Service> {
             zoom: None,
             group: Some("Personnel".to_string()),
             notify: None,
+            keep_alive: false,
         },
         Service {
             id: "default-slack".to_string(),
@@ -263,6 +272,7 @@ fn default_services() -> Vec<Service> {
             zoom: None,
             group: Some("Travail".to_string()),
             notify: None,
+            keep_alive: false,
         },
     ]
 }
@@ -445,6 +455,7 @@ mod tests {
             zoom: None,
             group: None,
             notify: notify.map(str::to_string),
+            keep_alive: false,
         }
     }
 

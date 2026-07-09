@@ -425,6 +425,7 @@ function showAddForm() {
   document.getElementById("input-zoom").value = "1";
   document.getElementById("input-zoom-val").textContent = "1.0×";
   document.getElementById("input-notify").value = "all";
+  document.getElementById("input-keep-alive").checked = false;
   document.getElementById("input-icon-file").value = "";
   refreshIconPreview();
   clearErrors();
@@ -445,6 +446,7 @@ function showEditForm(index) {
   document.getElementById("input-zoom-val").textContent = Number(z).toFixed(1) + "×";
   const notify = s.notify === "badge" || s.notify === "off" ? s.notify : "all";
   document.getElementById("input-notify").value = notify;
+  document.getElementById("input-keep-alive").checked = !!s.keep_alive;
 
   // Icône : image importée, Lucide, ou emoji hérité
   if (s.icon.startsWith("data:image")) {
@@ -503,6 +505,7 @@ async function saveForm() {
   // Notification level: "all" is the default and stored as null to keep the file clean.
   const notifyRaw = document.getElementById("input-notify").value;
   const notify = notifyRaw === "badge" || notifyRaw === "off" ? notifyRaw : null;
+  const keep_alive = document.getElementById("input-keep-alive").checked;
   const emojiIcon = document.getElementById("input-icon").value.trim();
 
   let valid = true;
@@ -554,7 +557,7 @@ async function saveForm() {
   }
 
   if (editingIndex === -1) {
-    services.push({ id, name, url, icon, user_agent, zoom, group, notify });
+    services.push({ id, name, url, icon, user_agent, zoom, group, notify, keep_alive });
   } else {
     services[editingIndex] = {
       ...services[editingIndex],
@@ -566,6 +569,7 @@ async function saveForm() {
       zoom,
       group,
       notify,
+      keep_alive,
     };
   }
 
@@ -655,6 +659,7 @@ async function addFromCatalog(recipe) {
     user_agent: recipe.user_agent ?? null,
     zoom: null,
     notify: null,
+    keep_alive: false,
   };
   services.push(service);
   hideCatalog();

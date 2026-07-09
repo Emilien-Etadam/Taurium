@@ -167,6 +167,18 @@ fn refresh_badges_for_levels(state: &WebviewState) -> u32 {
     }
 }
 
+/// Drop ids belonging to "keep alive" services from hibernation candidates.
+pub(crate) fn filter_hibernation_candidates(
+    navigated_ids: &HashSet<String>,
+    keep_alive_ids: &HashSet<String>,
+) -> Vec<String> {
+    navigated_ids
+        .iter()
+        .filter(|id| !keep_alive_ids.contains(*id))
+        .cloned()
+        .collect()
+}
+
 /// Select navigated webview ids that exceeded the inactivity threshold (excluding the active one).
 pub(crate) fn select_webviews_to_hibernate(
     navigated_ids: &[String],
@@ -918,7 +930,22 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
     };
     let now = Instant::now();
 
-    let navigated_ids: Vec<String> = navigated.iter().cloned().collect();
+    // Services marked "keep alive" are exempt from hibernation: unloading them
+    // to about:blank would stop their background JS, so they'd stop emitting
+    // title changes and Taurium would stop detecting new messages until the
+    // user manually switches back to them.
+    let keep_alive_ids: HashSet<String> = match state.services.lock() {
+        Ok(services) => services
+            .iter()
+            .filter(|s| s.keep_alive)
+            .map(|s| s.id.clone())
+            .collect(),
+        Err(e) => {
+            eprintln!("[Taurium] Mutex poisoned: {}", e);
+            HashSet::new()
+        }
+    };
+    let navigated_ids = filter_hibernation_candidates(&navigated, &keep_alive_ids);
     let to_hibernate = select_webviews_to_hibernate(
         &navigated_ids,
         active.as_deref(),
@@ -942,8 +969,9 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        compute_service_changes, is_meaningful_page_url, notification_body_for_badge_change,
-        select_webviews_to_hibernate, service_user_agent_changed, window_location_replace_js,
+        compute_service_changes, filter_hibernation_candidates, is_meaningful_page_url,
+        notification_body_for_badge_change, select_webviews_to_hibernate,
+        service_user_agent_changed, window_location_replace_js,
     };
     use crate::config::Service;
 
@@ -964,6 +992,7 @@ mod tests {
             zoom: None,
             group: None,
             notify: None,
+            keep_alive: false,
         }
     }
 
@@ -1112,6 +1141,30 @@ mod tests {
     }
 
     #[test]
+    fn filter_hibernation_candidates_excludes_keep_alive() {
+        let navigated: HashSet<String> = ["a", "b", "c"].iter().map(|s| s.to_string()).collect();
+        let keep_alive: HashSet<String> = ["b"].iter().map(|s| s.to_string()).collect();
+        let mut candidates = filter_hibernation_candidates(&navigated, &keep_alive);
+        candidates.sort();
+        assert_eq!(candidates, vec!["a".to_string(), "c".to_string()]);
+    }
+
+    #[test]
+    fn filter_hibernation_candidates_empty_keep_alive_is_noop() {
+        let navigated: HashSet<String> = ["a", "b"].iter().map(|s| s.to_string()).collect();
+        let mut candidates = filter_hibernation_candidates(&navigated, &HashSet::new());
+        candidates.sort();
+        assert_eq!(candidates, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn filter_hibernation_candidates_all_keep_alive_is_empty() {
+        let navigated: HashSet<String> = ["a", "b"].iter().map(|s| s.to_string()).collect();
+        let candidates = filter_hibernation_candidates(&navigated, &navigated);
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
     fn select_webviews_to_hibernate_skips_active() {
         let now = Instant::now();
         let last_activity = HashMap::from([("active".to_string(), now - Duration::from_secs(900))]);
@@ -1231,6 +1284,7 @@ mod tests {
             zoom: None,
             group: None,
             notify: None,
+            keep_alive: false,
         };
         let with_ua = Service {
             user_agent: Some("Custom".to_string()),
