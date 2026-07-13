@@ -425,7 +425,10 @@ fn create_service_webview_inner(
     let data_dir = state.app_data_dir.join("webview_data").join(&service.id);
     fs::create_dir_all(&data_dir)?;
 
+    // Les services embarqués (Slack, etc.) utilisent souvent l’API HTML5
+    // drag-and-drop ; le handler natif Tauri bloque ces événements DOM.
     let builder = tauri::webview::WebviewBuilder::new(&service.id, url)
+        .disable_drag_drop_handler()
         .on_page_load(move |_wv, payload| {
             if payload.event() == PageLoadEvent::Finished
                 && is_meaningful_page_url(payload.url().as_str())
