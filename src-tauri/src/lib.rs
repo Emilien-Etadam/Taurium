@@ -373,11 +373,14 @@ pub fn run() {
             let content_width = w - webviews::SIDEBAR_WIDTH;
 
             // Pre-create settings webview (hidden)
+            // HTML5 drag-and-drop (réordonnancement des services) est incompatible
+            // avec le gestionnaire natif Tauri ; il faut le désactiver ici.
             let settings_builder = tauri::webview::WebviewBuilder::new(
                 "settings",
                 WebviewUrl::App("settings.html".into()),
             )
-            .initialization_script(TAURI_INVOKE_SHIM);
+            .initialization_script(TAURI_INVOKE_SHIM)
+            .disable_drag_drop_handler();
             let settings_webview = window.add_child(
                 settings_builder,
                 LogicalPosition::new(webviews::SIDEBAR_WIDTH, 0.0),
