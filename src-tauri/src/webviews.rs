@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
-use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
+use tauri::webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::config::{
@@ -383,6 +384,125 @@ fn window_content_size(
     Ok((width, height))
 }
 
+/// Where a `window.open()` request coming from a service should be routed.
+#[derive(Debug, PartialEq)]
+pub(crate) enum PopupTarget {
+    /// Open as a real popup window that shares the service's session
+    /// (auth/SSO flows, same-site pop-outs, scripted `about:blank` popups).
+    InApp,
+    /// Hand off to the system browser (regular external links).
+    SystemBrowser,
+}
+
+/// SSO / login hosts that must stay in-app: the auth flow needs the
+/// service's cookies and a working `window.opener` to complete.
+const IN_APP_POPUP_HOSTS: &[&str] = &[
+    "login.microsoftonline.com",
+    "login.live.com",
+    "login.microsoft.com",
+    "login.windows.net",
+    "account.live.com",
+    "account.microsoft.com",
+    "teams.live.com",
+    "teams.microsoft.com",
+    "accounts.google.com",
+    "appleid.apple.com",
+    "id.atlassian.com",
+];
+
+/// Identity-provider domain suffixes (the tenant subdomain varies).
+const IN_APP_POPUP_HOST_SUFFIXES: &[&str] = &[
+    ".okta.com",
+    ".auth0.com",
+    ".onelogin.com",
+    ".duosecurity.com",
+    ".b2clogin.com",
+];
+
+/// Last two labels of a host — a crude registrable-domain approximation,
+/// good enough for the service catalog (no `co.uk`-style entries there).
+fn host_site(host: &str) -> String {
+    let labels: Vec<&str> = host.split('.').collect();
+    if labels.len() <= 2 {
+        host.to_string()
+    } else {
+        labels[labels.len() - 2..].join(".")
+    }
+}
+
+pub(crate) fn classify_popup_url(url: &Url, service_host: &str) -> PopupTarget {
+    // Non-http popups (about:blank…) are scripted by the opener and only
+    // work in-app.
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return PopupTarget::InApp;
+    }
+    let Some(host) = url.host_str() else {
+        return PopupTarget::InApp;
+    };
+    let site = host_site(service_host);
+    if !site.is_empty() && (host == site || host.ends_with(&format!(".{site}"))) {
+        return PopupTarget::InApp;
+    }
+    if IN_APP_POPUP_HOSTS.contains(&host)
+        || IN_APP_POPUP_HOST_SUFFIXES.iter().any(|s| host.ends_with(s))
+    {
+        return PopupTarget::InApp;
+    }
+    PopupTarget::SystemBrowser
+}
+
+static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+/// Handle a `window.open()` request from a service webview. Without this
+/// handler Tauri drops the request entirely (broken `target="_blank"` links,
+/// broken OAuth/account-switch popups). In-app popups share the service's
+/// session: `window_features` wires the WebView2 environment on Windows and
+/// the related view on Linux.
+fn handle_new_window(
+    app: &AppHandle,
+    service_id: &str,
+    service_host: &str,
+    user_agent: Option<&str>,
+    url: Url,
+    features: NewWindowFeatures,
+) -> NewWindowResponse<tauri::Wry> {
+    match classify_popup_url(&url, service_host) {
+        PopupTarget::SystemBrowser => {
+            eprintln!("[Taurium] Popup from '{service_id}' -> system browser: {url}");
+            if let Err(e) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
+                eprintln!("[Taurium] Failed to open '{url}' in browser: {e}");
+            }
+            NewWindowResponse::Deny
+        }
+        PopupTarget::InApp => {
+            let label = format!(
+                "{}-popup-{}",
+                service_id,
+                POPUP_SEQ.fetch_add(1, Ordering::Relaxed)
+            );
+            eprintln!("[Taurium] Popup from '{service_id}' -> in-app window '{label}': {url}");
+            let mut builder =
+                tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+                    .title(service_id)
+                    .inner_size(900.0, 700.0)
+                    .window_features(features)
+                    .on_document_title_changed(|window, title| {
+                        let _ = window.set_title(&title);
+                    });
+            if let Some(ua) = user_agent {
+                builder = builder.user_agent(ua);
+            }
+            match builder.build() {
+                Ok(window) => NewWindowResponse::Create { window },
+                Err(e) => {
+                    eprintln!("[Taurium] Failed to create popup window '{label}': {e}");
+                    NewWindowResponse::Deny
+                }
+            }
+        }
+    }
+}
+
 fn create_service_webview_inner(
     app: &AppHandle,
     window: &tauri::Window,
@@ -439,6 +559,23 @@ fn create_service_webview_inner(
         .on_document_title_changed(move |_wv, title| {
             handle_title_change(&app_clone, &sid, &sname, &title);
         });
+    let app_for_popup = app.clone();
+    let sid_for_popup = service.id.clone();
+    let ua_for_popup = service.user_agent.clone();
+    let service_host = Url::parse(&service.url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        .unwrap_or_default();
+    let builder = builder.on_new_window(move |url, features| {
+        handle_new_window(
+            &app_for_popup,
+            &sid_for_popup,
+            &service_host,
+            ua_for_popup.as_deref(),
+            url,
+            features,
+        )
+    });
     let builder = if let Some(ref ua) = service.user_agent {
         builder.user_agent(ua)
     } else {
@@ -972,17 +1109,89 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        compute_service_changes, filter_hibernation_candidates, is_meaningful_page_url,
-        notification_body_for_badge_change, select_webviews_to_hibernate,
-        service_user_agent_changed, window_location_replace_js,
+        classify_popup_url, compute_service_changes, filter_hibernation_candidates,
+        is_meaningful_page_url, notification_body_for_badge_change, select_webviews_to_hibernate,
+        service_user_agent_changed, window_location_replace_js, PopupTarget,
     };
     use crate::config::Service;
+    use tauri::Url;
 
     #[test]
     fn test_is_meaningful_page_url() {
         assert!(!is_meaningful_page_url(""));
         assert!(!is_meaningful_page_url("about:blank"));
         assert!(is_meaningful_page_url("https://example.com"));
+    }
+
+    fn popup_url(u: &str) -> Url {
+        u.parse().unwrap()
+    }
+
+    #[test]
+    fn popup_microsoft_login_stays_in_app() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
+                "teams.microsoft.com"
+            ),
+            PopupTarget::InApp
+        );
+    }
+
+    #[test]
+    fn popup_personal_teams_stays_in_app() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://teams.live.com/v2/"),
+                "teams.microsoft.com"
+            ),
+            PopupTarget::InApp
+        );
+    }
+
+    #[test]
+    fn popup_same_site_stays_in_app() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://outlook.office365.example.com/pop-out"),
+                "mail.example.com"
+            ),
+            PopupTarget::InApp
+        );
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://teams.microsoft.com/v2/meeting-popout"),
+                "teams.microsoft.com"
+            ),
+            PopupTarget::InApp
+        );
+    }
+
+    #[test]
+    fn popup_about_blank_stays_in_app() {
+        assert_eq!(
+            classify_popup_url(&popup_url("about:blank"), "teams.microsoft.com"),
+            PopupTarget::InApp
+        );
+    }
+
+    #[test]
+    fn popup_idp_suffix_stays_in_app() {
+        assert_eq!(
+            classify_popup_url(&popup_url("https://acme.okta.com/login"), "app.slack.com"),
+            PopupTarget::InApp
+        );
+    }
+
+    #[test]
+    fn popup_external_link_opens_system_browser() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://en.wikipedia.org/wiki/Rust"),
+                "teams.microsoft.com"
+            ),
+            PopupTarget::SystemBrowser
+        );
     }
 
     fn sample_service(id: &str) -> Service {
