@@ -387,15 +387,19 @@ fn window_content_size(
 /// Where a `window.open()` request coming from a service should be routed.
 #[derive(Debug, PartialEq)]
 pub(crate) enum PopupTarget {
-    /// Open as a real popup window that shares the service's session
-    /// (auth/SSO flows, same-site pop-outs, scripted `about:blank` popups).
-    InApp,
+    /// Navigate the service's own webview to the URL, like a browser tab
+    /// (auth/SSO flows, account switching, same-site pop-outs).
+    SameView,
+    /// Open as a real popup window sharing the service's session. Reserved
+    /// for scripted popups (`about:blank`): their content is injected by the
+    /// opener, so they cannot be navigated in place.
+    PopupWindow,
     /// Hand off to the system browser (regular external links).
     SystemBrowser,
 }
 
 /// SSO / login hosts that must stay in-app: the auth flow needs the
-/// service's cookies and a working `window.opener` to complete.
+/// service's cookies to complete.
 const IN_APP_POPUP_HOSTS: &[&str] = &[
     "login.microsoftonline.com",
     "login.live.com",
@@ -432,21 +436,21 @@ fn host_site(host: &str) -> String {
 
 pub(crate) fn classify_popup_url(url: &Url, service_host: &str) -> PopupTarget {
     // Non-http popups (about:blank…) are scripted by the opener and only
-    // work in-app.
+    // work as a real window.
     if url.scheme() != "http" && url.scheme() != "https" {
-        return PopupTarget::InApp;
+        return PopupTarget::PopupWindow;
     }
     let Some(host) = url.host_str() else {
-        return PopupTarget::InApp;
+        return PopupTarget::PopupWindow;
     };
     let site = host_site(service_host);
     if !site.is_empty() && (host == site || host.ends_with(&format!(".{site}"))) {
-        return PopupTarget::InApp;
+        return PopupTarget::SameView;
     }
     if IN_APP_POPUP_HOSTS.contains(&host)
         || IN_APP_POPUP_HOST_SUFFIXES.iter().any(|s| host.ends_with(s))
     {
-        return PopupTarget::InApp;
+        return PopupTarget::SameView;
     }
     PopupTarget::SystemBrowser
 }
@@ -455,9 +459,11 @@ static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
 
 /// Handle a `window.open()` request from a service webview. Without this
 /// handler Tauri drops the request entirely (broken `target="_blank"` links,
-/// broken OAuth/account-switch popups). In-app popups share the service's
-/// session: `window_features` wires the WebView2 environment on Windows and
-/// the related view on Linux.
+/// broken OAuth/account-switch popups). Auth flows and same-site pop-outs
+/// navigate the service's own webview in place, so the user stays in the
+/// same window; scripted popups get a real window sharing the service's
+/// session (`window_features` wires the WebView2 environment on Windows and
+/// the related view on Linux).
 fn handle_new_window(
     app: &AppHandle,
     service_id: &str,
@@ -474,31 +480,52 @@ fn handle_new_window(
             }
             NewWindowResponse::Deny
         }
-        PopupTarget::InApp => {
-            let label = format!(
-                "{}-popup-{}",
-                service_id,
-                POPUP_SEQ.fetch_add(1, Ordering::Relaxed)
-            );
-            eprintln!("[Taurium] Popup from '{service_id}' -> in-app window '{label}': {url}");
-            let mut builder =
-                tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
-                    .title(service_id)
-                    .inner_size(900.0, 700.0)
-                    .window_features(features)
-                    .on_document_title_changed(|window, title| {
-                        let _ = window.set_title(&title);
-                    });
-            if let Some(ua) = user_agent {
-                builder = builder.user_agent(ua);
-            }
-            match builder.build() {
-                Ok(window) => NewWindowResponse::Create { window },
-                Err(e) => {
-                    eprintln!("[Taurium] Failed to create popup window '{label}': {e}");
-                    NewWindowResponse::Deny
+        PopupTarget::SameView => {
+            eprintln!("[Taurium] Popup from '{service_id}' -> same view: {url}");
+            if let Some(webview) = app.get_webview(service_id) {
+                match webview.navigate(url.clone()) {
+                    Ok(()) => return NewWindowResponse::Deny,
+                    Err(e) => {
+                        // Fall back to a real popup window below.
+                        eprintln!("[Taurium] In-place navigation failed for '{service_id}': {e}");
+                    }
                 }
             }
+            create_popup_window(app, service_id, user_agent, url, features)
+        }
+        PopupTarget::PopupWindow => create_popup_window(app, service_id, user_agent, url, features),
+    }
+}
+
+/// Open `url` as a real popup window sharing the opener's session.
+fn create_popup_window(
+    app: &AppHandle,
+    service_id: &str,
+    user_agent: Option<&str>,
+    url: Url,
+    features: NewWindowFeatures,
+) -> NewWindowResponse<tauri::Wry> {
+    let label = format!(
+        "{}-popup-{}",
+        service_id,
+        POPUP_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    eprintln!("[Taurium] Popup from '{service_id}' -> in-app window '{label}': {url}");
+    let mut builder = tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+        .title(service_id)
+        .inner_size(900.0, 700.0)
+        .window_features(features)
+        .on_document_title_changed(|window, title| {
+            let _ = window.set_title(&title);
+        });
+    if let Some(ua) = user_agent {
+        builder = builder.user_agent(ua);
+    }
+    match builder.build() {
+        Ok(window) => NewWindowResponse::Create { window },
+        Err(e) => {
+            eprintln!("[Taurium] Failed to create popup window '{label}': {e}");
+            NewWindowResponse::Deny
         }
     }
 }
@@ -1128,58 +1155,58 @@ mod tests {
     }
 
     #[test]
-    fn popup_microsoft_login_stays_in_app() {
+    fn popup_microsoft_login_stays_in_view() {
         assert_eq!(
             classify_popup_url(
                 &popup_url("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"),
                 "teams.microsoft.com"
             ),
-            PopupTarget::InApp
+            PopupTarget::SameView
         );
     }
 
     #[test]
-    fn popup_personal_teams_stays_in_app() {
+    fn popup_personal_teams_stays_in_view() {
         assert_eq!(
             classify_popup_url(
                 &popup_url("https://teams.live.com/v2/"),
                 "teams.microsoft.com"
             ),
-            PopupTarget::InApp
+            PopupTarget::SameView
         );
     }
 
     #[test]
-    fn popup_same_site_stays_in_app() {
+    fn popup_same_site_stays_in_view() {
         assert_eq!(
             classify_popup_url(
                 &popup_url("https://outlook.office365.example.com/pop-out"),
                 "mail.example.com"
             ),
-            PopupTarget::InApp
+            PopupTarget::SameView
         );
         assert_eq!(
             classify_popup_url(
                 &popup_url("https://teams.microsoft.com/v2/meeting-popout"),
                 "teams.microsoft.com"
             ),
-            PopupTarget::InApp
+            PopupTarget::SameView
         );
     }
 
     #[test]
-    fn popup_about_blank_stays_in_app() {
+    fn popup_about_blank_opens_popup_window() {
         assert_eq!(
             classify_popup_url(&popup_url("about:blank"), "teams.microsoft.com"),
-            PopupTarget::InApp
+            PopupTarget::PopupWindow
         );
     }
 
     #[test]
-    fn popup_idp_suffix_stays_in_app() {
+    fn popup_idp_suffix_stays_in_view() {
         assert_eq!(
             classify_popup_url(&popup_url("https://acme.okta.com/login"), "app.slack.com"),
-            PopupTarget::InApp
+            PopupTarget::SameView
         );
     }
 
