@@ -28,5 +28,11 @@ tauri-plugin-process = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 sha2 = "0.10"
 
+# MemoryUsageTargetLevel hint for hidden webviews. Versions must stay in sync
+# with what wry uses, so the COM interface types match.
+[target.'cfg(target_os = "windows")'.dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"
+
 [dev-dependencies]
 tempfile = "3"

@@ -11,7 +11,7 @@ Taurium aggregates your web services (WhatsApp, Slack, Discord...) into a single
 *   **Service catalog** — add popular services (Telegram, Teams, Notion, GitHub…) from a built-in list, or define your own.
 *   **Isolated sessions** — each service has its own cookie/session store, so multiple accounts don't collide.
 *   **Notifications & unread badges** — desktop notifications and sidebar badges derived from page titles.
-*   **Memory-friendly** — services are lazy-loaded and inactive ones hibernate after 10 minutes.
+*   **Memory-friendly** — service webviews are created on first use, hidden ones are asked to shed memory, and inactive ones hibernate after 10 minutes (their whole process tree is freed; the session survives on disk).
 *   **Per-service tweaks** — custom zoom, custom user-agent (applied immediately on save), emoji or image icons.
 *   **Customizable UI** — dark theme, adjustable icon size, sidebar and accent colors.
 
