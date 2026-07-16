@@ -16,7 +16,6 @@ use crate::error::TauriumError;
 /// Minimum sidebar width / fallback (icons only). The actual width is driven by
 /// the frontend (it depends on icon size and the expanded state).
 pub const SIDEBAR_WIDTH: f64 = 48.0;
-const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
 // Notification body templates (English)
 const NOTIFY_SINGLE_FROM: &str = "1 notification from {service}";
@@ -1145,7 +1144,16 @@ pub fn apply_service_changes(
 /// all of it; switch_to() recreates the webview on the next click (the reload
 /// cost is the same as the old about:blank approach). The unread badge is
 /// kept so the sidebar still shows pending notifications.
+///
+/// The idle delay comes from the `hibernation_minutes` preference
+/// (default 10); `0` disables hibernation entirely.
 pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
+    let hibernation_minutes = load_preferences(&state.app_data_dir).hibernation_minutes;
+    if hibernation_minutes == 0 {
+        return;
+    }
+    let hibernation_secs = u64::from(hibernation_minutes) * 60;
+
     let active = match state.active_id.lock() {
         Ok(guard) => guard.clone(),
         Err(e) => {
@@ -1195,7 +1203,7 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
             active.as_deref(),
             &last_activity,
             now,
-            HIBERNATION_SECS,
+            hibernation_secs,
         )
     };
 
