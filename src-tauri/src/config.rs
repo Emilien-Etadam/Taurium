@@ -68,6 +68,10 @@ pub struct Preferences {
     /// Whether the sidebar is pinned expanded (labels + group names visible).
     #[serde(default = "default_sidebar_expanded")]
     pub sidebar_expanded: bool,
+    /// Idle minutes before an inactive service webview is hibernated (its
+    /// process tree is closed to free memory). `0` disables hibernation.
+    #[serde(default = "default_hibernation_minutes")]
+    pub hibernation_minutes: u32,
 }
 
 fn default_icon_size() -> u32 {
@@ -91,6 +95,12 @@ fn default_notifications_enabled() -> bool {
 fn default_sidebar_expanded() -> bool {
     false
 }
+pub(crate) fn default_hibernation_minutes() -> u32 {
+    10
+}
+/// Upper bound for the hibernation delay (24h) — mostly a sanity cap for
+/// hand-edited preference files.
+const MAX_HIBERNATION_MINUTES: u32 = 1440;
 
 impl Default for Preferences {
     fn default() -> Self {
@@ -101,6 +111,7 @@ impl Default for Preferences {
             theme: default_theme(),
             notifications_enabled: default_notifications_enabled(),
             sidebar_expanded: default_sidebar_expanded(),
+            hibernation_minutes: default_hibernation_minutes(),
         }
     }
 }
@@ -202,6 +213,9 @@ pub fn load_preferences(app_data_dir: &Path) -> Preferences {
     }
     if !THEMES.contains(&prefs.theme.as_str()) {
         prefs.theme = default_theme();
+    }
+    if prefs.hibernation_minutes > MAX_HIBERNATION_MINUTES {
+        prefs.hibernation_minutes = MAX_HIBERNATION_MINUTES;
     }
     prefs
 }
@@ -429,6 +443,31 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
+
+    #[test]
+    fn hibernation_minutes_defaults_and_clamps() {
+        let dir = tempdir().unwrap();
+
+        // Absent from the file → default of 10 minutes.
+        fs::write(dir.path().join("preferences.json"), "{}").unwrap();
+        assert_eq!(load_preferences(dir.path()).hibernation_minutes, 10);
+
+        // 0 is a valid value (hibernation disabled).
+        fs::write(
+            dir.path().join("preferences.json"),
+            r#"{"hibernation_minutes": 0}"#,
+        )
+        .unwrap();
+        assert_eq!(load_preferences(dir.path()).hibernation_minutes, 0);
+
+        // Hand-edited absurd values are clamped to 24h.
+        fs::write(
+            dir.path().join("preferences.json"),
+            r#"{"hibernation_minutes": 999999}"#,
+        )
+        .unwrap();
+        assert_eq!(load_preferences(dir.path()).hibernation_minutes, 1440);
+    }
 
     #[test]
     fn test_extract_badge_count() {

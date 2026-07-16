@@ -16,7 +16,6 @@ use crate::error::TauriumError;
 /// Minimum sidebar width / fallback (icons only). The actual width is driven by
 /// the frontend (it depends on icon size and the expanded state).
 pub const SIDEBAR_WIDTH: f64 = 48.0;
-const HIBERNATION_SECS: u64 = 600; // 10 minutes
 
 // Notification body templates (English)
 const NOTIFY_SINGLE_FROM: &str = "1 notification from {service}";
@@ -546,14 +545,14 @@ fn create_service_webview_inner(
     let sname = service.name.clone();
     let state = app.state::<WebviewState>();
 
-    // Idempotency guard. All service webviews are pre-created during setup(),
-    // and there is a brief startup window where `app.get_webview(id)` — checked
-    // off the main thread in switch_to — still returns None even though the
-    // label is already registered. Without this, switch_to would call add_child
-    // a second time and fail with "a webview with label `…` already exists"
-    // (surfaced as a toast on the last-active service at launch). Here we run on
-    // the main thread, where get_webview is authoritative: if the webview
-    // already exists, just reconcile our bookkeeping and skip re-creation.
+    // Idempotency guard. `app.get_webview(id)` — checked off the main thread
+    // in switch_to — can briefly return None even though the label is already
+    // registered (e.g. two rapid switches racing a creation in flight).
+    // Without this, switch_to would call add_child a second time and fail with
+    // "a webview with label `…` already exists" (surfaced as a toast). Here we
+    // run on the main thread, where get_webview is authoritative: if the
+    // webview already exists, just reconcile our bookkeeping and skip
+    // re-creation.
     if app.get_webview(&service.id).is_some() {
         let mut created = state
             .created_ids
@@ -663,6 +662,54 @@ pub fn create_service_webview(app: &AppHandle, service: &Service) -> Result<(), 
     }
 }
 
+/// Hint the browser engine about how aggressively this webview should hold on
+/// to memory. On Windows, `low` puts WebView2 in `MemoryUsageTargetLevel::Low`
+/// — it sheds caches and GCs aggressively WITHOUT pausing script, so hidden
+/// services keep emitting title/badge updates. `Normal` restores the default
+/// for the visible service. No-op on other platforms (WebKitGTK has no
+/// equivalent runtime knob).
+fn set_memory_usage_target(webview: &tauri::Webview, low: bool) {
+    #[cfg(target_os = "windows")]
+    {
+        let result = webview.with_webview(move |platform_webview| {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+            };
+            use windows_core::Interface;
+
+            let level = if low {
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+            } else {
+                COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+            };
+            unsafe {
+                let core = match platform_webview.controller().CoreWebView2() {
+                    Ok(core) => core,
+                    Err(e) => {
+                        eprintln!("[Taurium] CoreWebView2 unavailable: {e}");
+                        return;
+                    }
+                };
+                // Older WebView2 runtimes may not implement ICoreWebView2_19;
+                // the hint is best-effort.
+                if let Ok(wv) = core.cast::<ICoreWebView2_19>() {
+                    if let Err(e) = wv.SetMemoryUsageTargetLevel(level) {
+                        eprintln!("[Taurium] SetMemoryUsageTargetLevel failed: {e}");
+                    }
+                }
+            }
+        });
+        if let Err(e) = result {
+            eprintln!("[Taurium] with_webview failed: {e}");
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (webview, low);
+    }
+}
+
 fn hide_all(app: &AppHandle, state: &WebviewState) {
     let ids = match state.created_ids.lock() {
         Ok(guard) => guard,
@@ -674,6 +721,7 @@ fn hide_all(app: &AppHandle, state: &WebviewState) {
     for wv_id in ids.iter() {
         if let Some(webview) = app.get_webview(wv_id) {
             webview.hide().ok();
+            set_memory_usage_target(&webview, true);
         }
     }
     if let Some(webview) = app.get_webview("settings") {
@@ -788,6 +836,7 @@ pub fn switch_to(app: &AppHandle, state: &WebviewState, id: &str) -> Result<(), 
     apply_zoom_from_state(app, state, id);
 
     webview.show()?;
+    set_memory_usage_target(&webview, false);
 
     // Already-loaded tabs do not emit page-load/title events on re-show.
     if was_already_navigated {
@@ -891,7 +940,11 @@ pub fn apply_sidebar_width(app: &AppHandle, state: &WebviewState, width: f64) {
     resize_all_webviews(app, state);
 }
 
-fn cleanup_service_webview_state(state: &WebviewState, id: &str) -> Result<(), TauriumError> {
+fn cleanup_service_webview_state(
+    state: &WebviewState,
+    id: &str,
+    keep_badge: bool,
+) -> Result<(), TauriumError> {
     state
         .created_ids
         .lock()
@@ -902,11 +955,13 @@ fn cleanup_service_webview_state(state: &WebviewState, id: &str) -> Result<(), T
         .lock()
         .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
         .remove(id);
-    state
-        .badge_counts
-        .lock()
-        .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
-        .remove(id);
+    if !keep_badge {
+        state
+            .badge_counts
+            .lock()
+            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?
+            .remove(id);
+    }
     state
         .last_activity
         .lock()
@@ -915,23 +970,27 @@ fn cleanup_service_webview_state(state: &WebviewState, id: &str) -> Result<(), T
     Ok(())
 }
 
-fn remove_service_webview_inner(
+fn close_service_webview_inner(
     app: &AppHandle,
     state: &WebviewState,
     id: &str,
+    keep_badge: bool,
 ) -> Result<(), TauriumError> {
     if let Some(webview) = app.get_webview(id) {
         webview.hide().ok();
         webview.eval("window.location.replace('about:blank')").ok();
         webview.close()?;
     }
-    cleanup_service_webview_state(state, id)?;
-    eprintln!("[Taurium] Webview '{}' removed", id);
+    cleanup_service_webview_state(state, id, keep_badge)?;
+    eprintln!("[Taurium] Webview '{}' closed", id);
     Ok(())
 }
 
-/// Supprime une webview de service (hide → blank → close) et nettoie l'état associé.
-pub fn remove_service_webview(app: &AppHandle, id: &str) -> Result<(), TauriumError> {
+/// Ferme une webview de service (hide → blank → close) et nettoie l'état associé.
+/// Fermer (plutôt que naviguer vers about:blank) libère tout l'arbre de
+/// processus WebView2/WebKit du service — chaque service a son propre
+/// data_directory, donc son propre processus navigateur + GPU + utilitaires.
+fn close_service_webview(app: &AppHandle, id: &str, keep_badge: bool) -> Result<(), TauriumError> {
     let window = app.get_window("main").ok_or(TauriumError::WindowNotFound)?;
     let app_handle = app.clone();
     let id_owned = id.to_string();
@@ -939,17 +998,22 @@ pub fn remove_service_webview(app: &AppHandle, id: &str) -> Result<(), TauriumEr
 
     window.run_on_main_thread(move || {
         let state = app_handle.state::<WebviewState>();
-        let result = remove_service_webview_inner(&app_handle, &state, &id_owned);
+        let result = close_service_webview_inner(&app_handle, &state, &id_owned, keep_badge);
         let _ = tx.send(result);
     })?;
 
     match rx.recv_timeout(std::time::Duration::from_secs(5)) {
         Ok(result) => result,
         Err(_) => Err(TauriumError::ServiceNotFound(format!(
-            "Timed out removing webview '{}' on main thread",
+            "Timed out closing webview '{}' on main thread",
             id
         ))),
     }
+}
+
+/// Supprime une webview de service et tout son état (badge compris).
+pub fn remove_service_webview(app: &AppHandle, id: &str) -> Result<(), TauriumError> {
+    close_service_webview(app, id, false)
 }
 
 /// Recrée la webview d'un service (utile quand le user-agent change).
@@ -1072,24 +1136,26 @@ pub fn apply_service_changes(
     Ok(())
 }
 
-/// Hibernate inactive webviews to save memory
+/// Hibernate inactive webviews to save memory.
+///
+/// Hibernation CLOSES the webview instead of navigating it to about:blank:
+/// with one data_directory per service, even a blank webview keeps a full
+/// standalone WebView2/WebKit process tree alive (~60-80 MB). Closing frees
+/// all of it; switch_to() recreates the webview on the next click (the reload
+/// cost is the same as the old about:blank approach). The unread badge is
+/// kept so the sidebar still shows pending notifications.
+///
+/// The idle delay comes from the `hibernation_minutes` preference
+/// (default 10); `0` disables hibernation entirely.
 pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
+    let hibernation_minutes = load_preferences(&state.app_data_dir).hibernation_minutes;
+    if hibernation_minutes == 0 {
+        return;
+    }
+    let hibernation_secs = u64::from(hibernation_minutes) * 60;
+
     let active = match state.active_id.lock() {
         Ok(guard) => guard.clone(),
-        Err(e) => {
-            eprintln!("[Taurium] Mutex poisoned: {}", e);
-            return;
-        }
-    };
-    let mut last_activity = match state.last_activity.lock() {
-        Ok(guard) => guard,
-        Err(e) => {
-            eprintln!("[Taurium] Mutex poisoned: {}", e);
-            return;
-        }
-    };
-    let mut navigated = match state.navigated.lock() {
-        Ok(guard) => guard,
         Err(e) => {
             eprintln!("[Taurium] Mutex poisoned: {}", e);
             return;
@@ -1098,9 +1164,9 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
     let now = Instant::now();
 
     // Services marked "keep alive" are exempt from hibernation: unloading them
-    // to about:blank would stop their background JS, so they'd stop emitting
-    // title changes and Taurium would stop detecting new messages until the
-    // user manually switches back to them.
+    // would stop their background JS, so they'd stop emitting title changes
+    // and Taurium would stop detecting new messages until the user manually
+    // switches back to them.
     let keep_alive_ids: HashSet<String> = match state.services.lock() {
         Ok(services) => services
             .iter()
@@ -1112,20 +1178,42 @@ pub fn check_hibernation(app: &AppHandle, state: &WebviewState) {
             HashSet::new()
         }
     };
-    let navigated_ids = filter_hibernation_candidates(&navigated, &keep_alive_ids);
-    let to_hibernate = select_webviews_to_hibernate(
-        &navigated_ids,
-        active.as_deref(),
-        &last_activity,
-        now,
-        HIBERNATION_SECS,
-    );
+
+    // Collect candidates, then RELEASE the locks before closing: closing runs
+    // on the main thread and re-locks this state, so holding the guards here
+    // would deadlock (until the 5s timeout) on every hibernation.
+    let to_hibernate = {
+        let last_activity = match state.last_activity.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("[Taurium] Mutex poisoned: {}", e);
+                return;
+            }
+        };
+        let navigated = match state.navigated.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("[Taurium] Mutex poisoned: {}", e);
+                return;
+            }
+        };
+        let navigated_ids = filter_hibernation_candidates(&navigated, &keep_alive_ids);
+        select_webviews_to_hibernate(
+            &navigated_ids,
+            active.as_deref(),
+            &last_activity,
+            now,
+            hibernation_secs,
+        )
+    };
+
     for id in to_hibernate {
-        if let Some(webview) = app.get_webview(&id) {
-            eprintln!("[Taurium] Hibernating webview: {}", id);
-            webview.eval("window.location.replace('about:blank')").ok();
-            navigated.remove(&id);
-            last_activity.remove(&id);
+        eprintln!(
+            "[Taurium] Hibernating webview: {} (closing process tree)",
+            id
+        );
+        if let Err(e) = close_service_webview(app, &id, true) {
+            eprintln!("[Taurium] Failed to hibernate '{}': {}", id, e);
         }
     }
 }
@@ -1136,12 +1224,50 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        classify_popup_url, compute_service_changes, filter_hibernation_candidates,
-        is_meaningful_page_url, notification_body_for_badge_change, select_webviews_to_hibernate,
-        service_user_agent_changed, window_location_replace_js, PopupTarget,
+        classify_popup_url, cleanup_service_webview_state, compute_service_changes,
+        filter_hibernation_candidates, is_meaningful_page_url, notification_body_for_badge_change,
+        select_webviews_to_hibernate, service_user_agent_changed, window_location_replace_js,
+        PopupTarget, WebviewState,
     };
-    use crate::config::Service;
+    use crate::config::{Service, ServicesLoadInfo};
     use tauri::Url;
+
+    fn state_with_service(id: &str) -> WebviewState {
+        let now = Instant::now();
+        WebviewState {
+            created_ids: std::sync::Mutex::new(vec![id.to_string()]),
+            active_id: std::sync::Mutex::new(None),
+            app_data_dir: std::path::PathBuf::new(),
+            services: std::sync::Mutex::new(Vec::new()),
+            navigated: std::sync::Mutex::new(HashSet::from([id.to_string()])),
+            last_activity: std::sync::Mutex::new(HashMap::from([(id.to_string(), now)])),
+            badge_counts: std::sync::Mutex::new(HashMap::from([(id.to_string(), 3u32)])),
+            sidebar_width: std::sync::Mutex::new(super::SIDEBAR_WIDTH),
+            services_load_info: ServicesLoadInfo {
+                filtered_url_count: 0,
+                load_error: None,
+            },
+        }
+    }
+
+    #[test]
+    fn cleanup_keeps_badge_on_hibernation() {
+        let state = state_with_service("svc");
+        cleanup_service_webview_state(&state, "svc", true).unwrap();
+        assert!(state.created_ids.lock().unwrap().is_empty());
+        assert!(state.navigated.lock().unwrap().is_empty());
+        assert!(state.last_activity.lock().unwrap().is_empty());
+        // The unread badge must survive hibernation so the sidebar keeps
+        // showing pending notifications for the closed webview.
+        assert_eq!(state.badge_counts.lock().unwrap().get("svc"), Some(&3));
+    }
+
+    #[test]
+    fn cleanup_drops_badge_on_removal() {
+        let state = state_with_service("svc");
+        cleanup_service_webview_state(&state, "svc", false).unwrap();
+        assert!(state.badge_counts.lock().unwrap().is_empty());
+    }
 
     #[test]
     fn test_is_meaningful_page_url() {

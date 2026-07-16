@@ -222,6 +222,27 @@
       </div>
     </section>
 
+    <!-- ── Mémoire ──────────────────────────────────────────────────── -->
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Mémoire</h2>
+      </div>
+      <div class="card__body">
+        <div class="pref-row">
+          <label class="pref-label" for="pref-hibernation">Hibernation des services inactifs</label>
+          <select id="pref-hibernation" class="input">
+            <option value="5">Après 5 min</option>
+            <option value="10">Après 10 min</option>
+            <option value="20">Après 20 min</option>
+            <option value="30">Après 30 min</option>
+            <option value="60">Après 1 h</option>
+            <option value="0">Jamais</option>
+          </select>
+        </div>
+        <p class="hint">Un service inactif est entièrement déchargé pour libérer sa mémoire, puis rechargé au prochain clic. Les services « Garder actif » ne sont jamais déchargés.</p>
+      </div>
+    </section>
+
     <div class="save-row">
       <button id="save-prefs-btn" class="btn btn--primary">Enregistrer</button>
     </div>

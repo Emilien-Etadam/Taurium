@@ -119,6 +119,13 @@ async function init() {
     document.getElementById("pref-icon-size").value = prefs.icon_size;
     document.getElementById("pref-icon-size-val").textContent = prefs.icon_size + "px";
     document.getElementById("pref-notifications").checked = prefs.notifications_enabled;
+    const hibernationSelect = document.getElementById("pref-hibernation");
+    hibernationSelect.value = String(prefs.hibernation_minutes ?? 10);
+    // A hand-edited preferences.json can hold a value with no matching
+    // option; fall back to the default so the select isn't left blank.
+    if (hibernationSelect.value !== String(prefs.hibernation_minutes ?? 10)) {
+      hibernationSelect.value = "10";
+    }
   } catch (err) {
     showToast("Impossible de charger les réglages : " + formatInvokeError(err), { durationMs: 10000 });
     console.error("Settings init error:", err);
@@ -793,6 +800,7 @@ async function savePreferences() {
     theme: selectedTheme,
     accent_color: selectedAccent,
     notifications_enabled: document.getElementById("pref-notifications").checked,
+    hibernation_minutes: parseInt(document.getElementById("pref-hibernation").value, 10),
   };
 
   try {

@@ -389,16 +389,13 @@ pub fn run() {
             settings_webview.hide()?;
             eprintln!("[Taurium] Settings webview created (hidden)");
 
-            // Pre-create ALL service webviews with about:blank (lazy loading).
-            // Must be done here in setup() because add_child() deadlocks
-            // when called from command handlers on Windows (WebView2 STA issue).
-            for service in &services {
-                eprintln!(
-                    "[Taurium] Pre-creating webview: {} (about:blank, lazy)",
-                    service.id
-                );
-                webviews::create_service_webview(app.handle(), service)?;
-            }
+            // Service webviews are NOT pre-created here. Each service has its
+            // own data_directory, so each webview spawns a full standalone
+            // WebView2/WebKit process tree (browser + GPU + network + storage
+            // utilities) — ~60-80 MB apiece even on about:blank. Creating them
+            // all up front made Taurium heavier than Electron at launch.
+            // switch_to() creates each webview on demand from the async
+            // command thread (safe: add_child is posted to the main thread).
 
             // Listen for window resize events
             let app_handle = app.handle().clone();
