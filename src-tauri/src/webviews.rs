@@ -372,6 +372,124 @@ pub fn reload_service_webview(
     Ok(())
 }
 
+/// Clear a service's caches, then reload it on its configured URL. No-op when
+/// its webview doesn't exist (never opened, or hibernated), like a reload.
+pub fn clear_cache_and_reload_service(
+    app: &AppHandle,
+    state: &WebviewState,
+    id: &str,
+) -> Result<(), TauriumError> {
+    let url = {
+        let services = state
+            .services
+            .lock()
+            .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))?;
+        services.iter().find(|s| s.id == id).map(|s| s.url.clone())
+    };
+    let (Some(url), Some(webview)) = (url, app.get_webview(id)) else {
+        return Ok(());
+    };
+    eprintln!("[Taurium] Clearing cache and reloading service: {}", id);
+
+    let js = window_location_replace_js(&url);
+    let target = webview.clone();
+    clear_cache_then(&webview, move || {
+        if let Err(e) = target.eval(js) {
+            eprintln!("[Taurium] Reload after cache clear failed: {e}");
+        }
+    })
+}
+
+/// Drop a webview's caches (HTTP cache + the app's own Cache Storage) and then
+/// run `then`. Cookies, localStorage and IndexedDB are kept, so the service
+/// stays signed in; each service has its own data_directory, so the others are
+/// untouched. The engines clear asynchronously: `then` runs from their
+/// completion callback so a reload can't race the wipe (or right away when
+/// the platform can't clear).
+fn clear_cache_then(
+    webview: &tauri::Webview,
+    then: impl FnOnce() + Send + 'static,
+) -> Result<(), TauriumError> {
+    #[cfg(target_os = "windows")]
+    {
+        webview.with_webview(move |platform_webview| {
+            use std::cell::Cell;
+            use std::rc::Rc;
+            use webview2_com::ClearBrowsingDataCompletedHandler;
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2Profile2, ICoreWebView2_13,
+                COREWEBVIEW2_BROWSING_DATA_KINDS_CACHE_STORAGE,
+                COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE,
+            };
+            use windows_core::Interface;
+
+            // `then` must run exactly once: from the completion handler, or
+            // right away if the call fails (older runtimes lack the profile API).
+            let then = Rc::new(Cell::new(Some(then)));
+            let then_on_done = Rc::clone(&then);
+            let handler = ClearBrowsingDataCompletedHandler::create(Box::new(move |result| {
+                if let Err(e) = result {
+                    eprintln!("[Taurium] ClearBrowsingData failed: {e}");
+                }
+                if let Some(then) = then_on_done.take() {
+                    then();
+                }
+                Ok(())
+            }));
+            let kinds = COREWEBVIEW2_BROWSING_DATA_KINDS_DISK_CACHE
+                | COREWEBVIEW2_BROWSING_DATA_KINDS_CACHE_STORAGE;
+            let result = unsafe {
+                platform_webview
+                    .controller()
+                    .CoreWebView2()
+                    .and_then(|core| core.cast::<ICoreWebView2_13>())
+                    .and_then(|core| core.Profile())
+                    .and_then(|profile| profile.cast::<ICoreWebView2Profile2>())
+                    .and_then(|profile| profile.ClearBrowsingData(kinds, &handler))
+            };
+            if let Err(e) = result {
+                eprintln!("[Taurium] Cache clearing unavailable: {e}");
+                if let Some(then) = then.take() {
+                    then();
+                }
+            }
+        })?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        webview.with_webview(move |platform_webview| {
+            use webkit2gtk::{
+                gio, glib, WebViewExt, WebsiteDataManagerExtManual, WebsiteDataTypes,
+            };
+
+            let Some(manager) = platform_webview.inner().website_data_manager() else {
+                eprintln!("[Taurium] Cache clearing unavailable: no website data manager");
+                then();
+                return;
+            };
+            manager.clear(
+                WebsiteDataTypes::MEMORY_CACHE
+                    | WebsiteDataTypes::DISK_CACHE
+                    | WebsiteDataTypes::DOM_CACHE,
+                glib::TimeSpan::from_seconds(0), // 0 = all entries, not only recent ones
+                None::<&gio::Cancellable>,
+                move |result| {
+                    if let Err(e) = result {
+                        eprintln!("[Taurium] Cache clearing failed: {e}");
+                    }
+                    then();
+                },
+            );
+        })?;
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        let _ = webview;
+        then();
+    }
+    Ok(())
+}
+
 fn window_content_size(
     window: &tauri::Window,
     sidebar_width: f64,
