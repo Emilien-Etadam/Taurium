@@ -28,11 +28,17 @@ tauri-plugin-process = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 sha2 = "0.10"
 
-# MemoryUsageTargetLevel hint for hidden webviews. Versions must stay in sync
-# with what wry uses, so the COM interface types match.
+# MemoryUsageTargetLevel hint for hidden webviews and per-service cache
+# clearing. Versions must stay in sync with what wry uses, so the COM interface
+# types match.
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "0.38"
 windows-core = "0.61"
+
+# Per-service cache clearing (WebsiteDataManager). Version must stay in sync
+# with what wry uses, so the WebView type handed out by with_webview matches.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_16"] }
 
 [dev-dependencies]
 tempfile = "3"

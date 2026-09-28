@@ -180,12 +180,15 @@ fn show_service_context_menu(app: tauri::AppHandle, id: String) -> Result<(), Ta
         .map_err(|e| TauriumError::MutexPoisoned(e.to_string()))? = Some(id);
 
     let reload_item = MenuItemBuilder::with_id("ctx_reload", "Reload").build(&app)?;
+    let clear_cache_item =
+        MenuItemBuilder::with_id("ctx_clear_cache_reload", "Clear cache and reload").build(&app)?;
     let zoom_in_item = MenuItemBuilder::with_id("ctx_zoom_in", "Zoom In").build(&app)?;
     let zoom_out_item = MenuItemBuilder::with_id("ctx_zoom_out", "Zoom Out").build(&app)?;
     let open_item = MenuItemBuilder::with_id("ctx_open_browser", "Open in browser").build(&app)?;
 
     let menu = MenuBuilder::new(&app)
         .item(&reload_item)
+        .item(&clear_cache_item)
         .item(&zoom_in_item)
         .item(&zoom_out_item)
         .item(&open_item)
@@ -424,6 +427,23 @@ pub fn run() {
                             let state = app_handle_evt.state::<WebviewState>();
                             webviews::reload_service_webview(app_handle_evt, &state, &service_id)
                                 .ok();
+                        }
+                        "ctx_clear_cache_reload" => {
+                            eprintln!(
+                                "[Taurium] Context menu: clear cache and reload {}",
+                                service_id
+                            );
+                            let state = app_handle_evt.state::<WebviewState>();
+                            if let Err(e) = webviews::clear_cache_and_reload_service(
+                                app_handle_evt,
+                                &state,
+                                &service_id,
+                            ) {
+                                eprintln!(
+                                    "[Taurium] Failed to clear cache for '{}': {}",
+                                    service_id, e
+                                );
+                            }
                         }
                         "ctx_zoom_in" => {
                             eprintln!("[Taurium] Context menu: zoom in {}", service_id);
