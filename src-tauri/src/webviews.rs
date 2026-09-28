@@ -592,8 +592,17 @@ fn handle_new_window(
     match classify_popup_url(&url, service_host) {
         PopupTarget::SystemBrowser => {
             eprintln!("[Taurium] Popup from '{service_id}' -> system browser: {url}");
-            if let Err(e) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
-                eprintln!("[Taurium] Failed to open '{url}' in browser: {e}");
+            // On Windows this handler runs on a short-lived thread with no COM
+            // apartment or message loop, where ShellExecuteEx (behind the
+            // opener) can silently fail to launch the browser. The main thread
+            // has both, like the "Open in browser" menu entry.
+            let dispatched = app.run_on_main_thread(move || {
+                if let Err(e) = tauri_plugin_opener::open_url(url.as_str(), None::<&str>) {
+                    eprintln!("[Taurium] Failed to open '{url}' in browser: {e}");
+                }
+            });
+            if let Err(e) = dispatched {
+                eprintln!("[Taurium] Failed to hand link to the main thread: {e}");
             }
             NewWindowResponse::Deny
         }
