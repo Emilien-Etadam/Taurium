@@ -507,9 +507,10 @@ pub(crate) enum PopupTarget {
     /// Navigate the service's own webview to the URL, like a browser tab
     /// (auth/SSO flows, account switching, same-site pop-outs).
     SameView,
-    /// Open as a real popup window sharing the service's session. Reserved
-    /// for scripted popups (`about:blank`): their content is injected by the
-    /// opener, so they cannot be navigated in place.
+    /// Open as a real popup window sharing the service's session. Used for
+    /// scripted popups (`about:blank`, content injected by the opener) and
+    /// for image URLs that must open in a new window without leaving the
+    /// service or losing the session cookies.
     PopupWindow,
     /// Hand off to the system browser (regular external links).
     SystemBrowser,
@@ -551,10 +552,28 @@ fn host_site(host: &str) -> String {
     }
 }
 
+/// True when the URL path looks like a direct image resource (extension
+/// heuristic — MIME is not available at `window.open` classify time).
+pub(crate) fn url_looks_like_image(url: &Url) -> bool {
+    const IMAGE_EXTENSIONS: &[&str] = &[
+        ".apng", ".avif", ".bmp", ".gif", ".ico", ".jfif", ".jpeg", ".jpg", ".png", ".svg", ".tif",
+        ".tiff", ".webp",
+    ];
+    let path = url.path().to_ascii_lowercase();
+    let file_name = path.rsplit('/').next().unwrap_or(path.as_str());
+    IMAGE_EXTENSIONS.iter().any(|ext| file_name.ends_with(ext))
+}
+
 pub(crate) fn classify_popup_url(url: &Url, service_host: &str) -> PopupTarget {
     // Non-http popups (about:blank…) are scripted by the opener and only
     // work as a real window.
     if url.scheme() != "http" && url.scheme() != "https" {
+        return PopupTarget::PopupWindow;
+    }
+    // Image links (target=_blank / window.open) must open in a real window:
+    // SameView would replace the service, SystemBrowser would drop session
+    // cookies needed for private CDN images.
+    if url_looks_like_image(url) {
         return PopupTarget::PopupWindow;
     }
     let Some(host) = url.host_str() else {
@@ -577,10 +596,9 @@ static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
 /// Handle a `window.open()` request from a service webview. Without this
 /// handler Tauri drops the request entirely (broken `target="_blank"` links,
 /// broken OAuth/account-switch popups). Auth flows and same-site pop-outs
-/// navigate the service's own webview in place, so the user stays in the
-/// same window; scripted popups get a real window sharing the service's
-/// session (`window_features` wires the WebView2 environment on Windows and
-/// the related view on Linux).
+/// navigate the service's own webview in place; image links and scripted
+/// popups get a real window sharing the service's session (`window_features`
+/// wires the WebView2 environment on Windows and the related view on Linux).
 fn handle_new_window(
     app: &AppHandle,
     service_id: &str,
@@ -624,6 +642,12 @@ fn handle_new_window(
 }
 
 /// Open `url` as a real popup window sharing the opener's session.
+///
+/// The window is created on `about:blank`. WebView2 requires the webview
+/// passed to `SetNewWindow` to not have been navigated yet; it then loads
+/// the requested URL itself. Starting on the target URL (or any other page)
+/// can make the engine reject the window and immediately destroy it — which
+/// is what broke image `target="_blank"` / `window.open` links.
 fn create_popup_window(
     app: &AppHandle,
     service_id: &str,
@@ -637,7 +661,8 @@ fn create_popup_window(
         POPUP_SEQ.fetch_add(1, Ordering::Relaxed)
     );
     eprintln!("[Taurium] Popup from '{service_id}' -> in-app window '{label}': {url}");
-    let mut builder = tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+    let blank = "about:blank".parse().expect("about:blank is a valid URL");
+    let mut builder = tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(blank))
         .title(service_id)
         .inner_size(900.0, 700.0)
         .window_features(features)
@@ -1353,8 +1378,8 @@ mod tests {
     use super::{
         classify_popup_url, cleanup_service_webview_state, compute_service_changes,
         filter_hibernation_candidates, is_meaningful_page_url, notification_body_for_badge_change,
-        select_webviews_to_hibernate, service_user_agent_changed, window_location_replace_js,
-        PopupTarget, WebviewState,
+        select_webviews_to_hibernate, service_user_agent_changed, url_looks_like_image,
+        window_location_replace_js, PopupTarget, WebviewState,
     };
     use crate::config::{Service, ServicesLoadInfo};
     use tauri::Url;
@@ -1471,6 +1496,44 @@ mod tests {
                 "teams.microsoft.com"
             ),
             PopupTarget::SystemBrowser
+        );
+    }
+
+    #[test]
+    fn url_looks_like_image_detects_common_extensions() {
+        assert!(url_looks_like_image(&popup_url(
+            "https://cdn.example.com/files/photo.PNG?w=800"
+        )));
+        assert!(url_looks_like_image(&popup_url(
+            "https://files.slack.com/files-pri/T1/F2/image.jpeg"
+        )));
+        assert!(!url_looks_like_image(&popup_url(
+            "https://en.wikipedia.org/wiki/Rust"
+        )));
+        assert!(!url_looks_like_image(&popup_url(
+            "https://cdn.example.com/files/report.pdf"
+        )));
+    }
+
+    #[test]
+    fn popup_same_site_image_opens_popup_window() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://files.slack.com/files-pri/T1/F2/shot.png"),
+                "app.slack.com"
+            ),
+            PopupTarget::PopupWindow
+        );
+    }
+
+    #[test]
+    fn popup_external_image_opens_popup_window() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url("https://media.discordapp.net/attachments/1/2/pic.webp"),
+                "discord.com"
+            ),
+            PopupTarget::PopupWindow
         );
     }
 
