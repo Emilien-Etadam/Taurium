@@ -505,12 +505,11 @@ fn window_content_size(
 #[derive(Debug, PartialEq)]
 pub(crate) enum PopupTarget {
     /// Navigate the service's own webview to the URL, like a browser tab
-    /// (auth/SSO flows, account switching, same-site pop-outs).
+    /// (SSO / IdP hosts and account-switch destinations only).
     SameView,
     /// Open as a real popup window sharing the service's session. Used for
-    /// scripted popups (`about:blank`, content injected by the opener) and
-    /// for image URLs that must open in a new window without leaving the
-    /// service or losing the session cookies.
+    /// scripted popups (`about:blank`), same-site pop-outs (including image /
+    /// media links without a file extension), and external image URLs.
     PopupWindow,
     /// Hand off to the system browser (regular external links).
     SystemBrowser,
@@ -571,18 +570,24 @@ pub(crate) fn classify_popup_url(url: &Url, service_host: &str) -> PopupTarget {
         return PopupTarget::PopupWindow;
     }
     // Image links (target=_blank / window.open) must open in a real window:
-    // SameView would replace the service, SystemBrowser would drop session
-    // cookies needed for private CDN images.
+    // SystemBrowser would drop session cookies needed for private CDN images.
     if url_looks_like_image(url) {
         return PopupTarget::PopupWindow;
     }
     let Some(host) = url.host_str() else {
         return PopupTarget::PopupWindow;
     };
+    // Same-site targets (media CDNs, meeting pop-outs, file viewers, …) open
+    // as a real window. Navigating the service webview in place (#39) made
+    // extension-less image URLs — e.g. Teams `asyncgw…/views/imgo` — replace
+    // the chat instead of opening a separate window; #47's extension check
+    // could not see those paths.
     let site = host_site(service_host);
     if !site.is_empty() && (host == site || host.ends_with(&format!(".{site}"))) {
-        return PopupTarget::SameView;
+        return PopupTarget::PopupWindow;
     }
+    // Pure SSO / account-switch hosts stay in the service view so flows that
+    // need the opener's cookies (and must not detach) keep working.
     if IN_APP_POPUP_HOSTS.contains(&host)
         || IN_APP_POPUP_HOST_SUFFIXES.iter().any(|s| host.ends_with(s))
     {
@@ -595,8 +600,8 @@ static POPUP_SEQ: AtomicUsize = AtomicUsize::new(0);
 
 /// Handle a `window.open()` request from a service webview. Without this
 /// handler Tauri drops the request entirely (broken `target="_blank"` links,
-/// broken OAuth/account-switch popups). Auth flows and same-site pop-outs
-/// navigate the service's own webview in place; image links and scripted
+/// broken OAuth/account-switch popups). SSO / IdP hosts navigate the service
+/// webview in place; same-site pop-outs (including images) and scripted
 /// popups get a real window sharing the service's session (`window_features`
 /// wires the WebView2 environment on Windows and the related view on Linux).
 fn handle_new_window(
@@ -1455,20 +1460,20 @@ mod tests {
     }
 
     #[test]
-    fn popup_same_site_stays_in_view() {
+    fn popup_same_site_opens_popup_window() {
         assert_eq!(
             classify_popup_url(
                 &popup_url("https://outlook.office365.example.com/pop-out"),
                 "mail.example.com"
             ),
-            PopupTarget::SameView
+            PopupTarget::PopupWindow
         );
         assert_eq!(
             classify_popup_url(
                 &popup_url("https://teams.microsoft.com/v2/meeting-popout"),
                 "teams.microsoft.com"
             ),
-            PopupTarget::SameView
+            PopupTarget::PopupWindow
         );
     }
 
@@ -1535,6 +1540,26 @@ mod tests {
             ),
             PopupTarget::PopupWindow
         );
+    }
+
+    /// Teams full-size image links use object URLs with no file extension
+    /// (`.../views/imgo`). After #47 they still classify as SameView via the
+    /// same-site rule, so the service webview navigates in place — the image
+    /// opens inside Taurium instead of a separate window.
+    #[test]
+    fn popup_same_site_media_without_extension_opens_popup_window() {
+        assert_eq!(
+            classify_popup_url(
+                &popup_url(
+                    "https://us-prod.asyncgw.teams.microsoft.com/v1/objects/0-eus-d1-deadbeef/views/imgo"
+                ),
+                "teams.microsoft.com"
+            ),
+            PopupTarget::PopupWindow
+        );
+        assert!(!url_looks_like_image(&popup_url(
+            "https://us-prod.asyncgw.teams.microsoft.com/v1/objects/0-eus-d1-deadbeef/views/imgo"
+        )));
     }
 
     fn sample_service(id: &str) -> Service {
