@@ -646,13 +646,29 @@ fn handle_new_window(
     }
 }
 
-/// Open `url` as a real popup window sharing the opener's session.
-///
-/// The window is created on `about:blank`. WebView2 requires the webview
-/// passed to `SetNewWindow` to not have been navigated yet; it then loads
-/// the requested URL itself. Starting on the target URL (or any other page)
-/// can make the engine reject the window and immediately destroy it — which
-/// is what broke image `target="_blank"` / `window.open` links.
+/// How a `PopupWindow` target should be materialised as an OS window.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum PopupCreationStrategy {
+    /// `about:blank` / scripted popups: hand an un-navigated webview to the
+    /// engine via `NewWindowResponse::Create` so the opener can inject DOM.
+    EngineCreate,
+    /// http(s) targets (images, media viewers, …): open our own decorated
+    /// floating `WebviewWindow` loaded with the URL, then `Deny` the engine
+    /// request. Returning `Create` after `about:blank` from a service
+    /// *child* webview lets WebView2 `SetNewWindow` replace/reabsorb content
+    /// into the opener's host HWND — the image appears inside the main
+    /// Taurium window instead of a separate floating one.
+    HostFloating,
+}
+
+pub(crate) fn popup_creation_strategy(url: &Url) -> PopupCreationStrategy {
+    match url.scheme() {
+        "http" | "https" => PopupCreationStrategy::HostFloating,
+        _ => PopupCreationStrategy::EngineCreate,
+    }
+}
+
+/// Open `url` as a real floating popup window sharing the opener's session.
 fn create_popup_window(
     app: &AppHandle,
     service_id: &str,
@@ -665,20 +681,48 @@ fn create_popup_window(
         service_id,
         POPUP_SEQ.fetch_add(1, Ordering::Relaxed)
     );
-    eprintln!("[Taurium] Popup from '{service_id}' -> in-app window '{label}': {url}");
-    let blank = "about:blank".parse().expect("about:blank is a valid URL");
-    let mut builder = tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(blank))
-        .title(service_id)
-        .inner_size(900.0, 700.0)
-        .window_features(features)
-        .on_document_title_changed(|window, title| {
-            let _ = window.set_title(&title);
-        });
+    let strategy = popup_creation_strategy(&url);
+    eprintln!(
+        "[Taurium] Popup from '{service_id}' -> floating window '{label}' ({strategy:?}): {url}"
+    );
+
+    let initial_url = match strategy {
+        PopupCreationStrategy::HostFloating => url.clone(),
+        PopupCreationStrategy::EngineCreate => {
+            "about:blank".parse().expect("about:blank is a valid URL")
+        }
+    };
+
+    // `window_features` first (shares WebView2 environment / related view),
+    // then force size/placement so a zeroed engine size cannot collapse the
+    // window, and so the window is clearly a separate floating surface.
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(initial_url))
+            .window_features(features)
+            .title(service_id)
+            .inner_size(900.0, 700.0)
+            .center()
+            .focused(true)
+            .visible(true)
+            .decorations(true)
+            .on_document_title_changed(|window, title| {
+                let _ = window.set_title(&title);
+            });
     if let Some(ua) = user_agent {
         builder = builder.user_agent(ua);
     }
     match builder.build() {
-        Ok(window) => NewWindowResponse::Create { window },
+        Ok(window) => {
+            let _ = window.set_focus();
+            match strategy {
+                // Engine navigates the blank webview itself (SetNewWindow).
+                PopupCreationStrategy::EngineCreate => NewWindowResponse::Create { window },
+                // We already loaded `url` in our floating window; denying
+                // avoids SetNewWindow on a navigated webview (which WebView2
+                // rejects, then the request is effectively lost / reabsorbed).
+                PopupCreationStrategy::HostFloating => NewWindowResponse::Deny,
+            }
+        }
         Err(e) => {
             eprintln!("[Taurium] Failed to create popup window '{label}': {e}");
             NewWindowResponse::Deny
@@ -1383,8 +1427,9 @@ mod tests {
     use super::{
         classify_popup_url, cleanup_service_webview_state, compute_service_changes,
         filter_hibernation_candidates, is_meaningful_page_url, notification_body_for_badge_change,
-        select_webviews_to_hibernate, service_user_agent_changed, url_looks_like_image,
-        window_location_replace_js, PopupTarget, WebviewState,
+        popup_creation_strategy, select_webviews_to_hibernate, service_user_agent_changed,
+        url_looks_like_image, window_location_replace_js, PopupCreationStrategy, PopupTarget,
+        WebviewState,
     };
     use crate::config::{Service, ServicesLoadInfo};
     use tauri::Url;
@@ -1560,6 +1605,32 @@ mod tests {
         assert!(!url_looks_like_image(&popup_url(
             "https://us-prod.asyncgw.teams.microsoft.com/v1/objects/0-eus-d1-deadbeef/views/imgo"
         )));
+    }
+
+    /// #47/#49 routed http(s) image popups through about:blank + `Create` /
+    /// WebView2 `SetNewWindow`. From a service *child* webview that reabsorbs
+    /// the navigation into the main Taurium HWND. http(s) must use a
+    /// host-owned floating `WebviewWindow` instead.
+    #[test]
+    fn http_image_popup_uses_host_owned_floating_window() {
+        assert_eq!(
+            popup_creation_strategy(&popup_url(
+                "https://us-prod.asyncgw.teams.microsoft.com/v1/objects/0-eus-d1-deadbeef/views/imgo"
+            )),
+            PopupCreationStrategy::HostFloating
+        );
+        assert_eq!(
+            popup_creation_strategy(&popup_url("https://cdn.example.com/photo.png")),
+            PopupCreationStrategy::HostFloating
+        );
+    }
+
+    #[test]
+    fn about_blank_popup_stays_engine_owned() {
+        assert_eq!(
+            popup_creation_strategy(&popup_url("about:blank")),
+            PopupCreationStrategy::EngineCreate
+        );
     }
 
     fn sample_service(id: &str) -> Service {
