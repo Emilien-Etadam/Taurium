@@ -3938,7 +3938,7 @@ dependencies = [
 
 [[package]]
 name = "taurium"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "regex-lite",
  "rustls",
